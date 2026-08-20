@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     # avisa en vez de romper el resto de la app.
     gemini_api_key: str = ""
 
+    # OAuth de Google (Gmail, solo lectura) -- ver services/gmail.py. client_id/secret
+    # vienen de un ID de cliente de OAuth tipo "Aplicación de escritorio" en Google
+    # Cloud Console. refresh_token se obtiene una única vez, a mano, autorizando la
+    # app (ver el flujo en gmail.py) -- no hay login por usuario dentro de NINUMAPP,
+    # es una única cuenta de correo (la del negocio) autorizada de antemano.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    gmail_refresh_token: str = ""
+
     # Conexión de solo lectura a la Supabase de la web (proyecto NINUMAWEB/WBD,
     # fuera de este repo) -- rol dedicado "ninumapp_lectura" (ver
     # WBD/supabase/migrations/038_rol_lectura_ninumapp.sql), nunca la service_role

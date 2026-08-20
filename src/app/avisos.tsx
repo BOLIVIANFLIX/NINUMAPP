@@ -1,59 +1,81 @@
 import { useQuery } from '@tanstack/react-query';
-import { ActivityIndicator, FlatList, StyleSheet } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mensajeError, obtenerAvisos, type SolicitudPendiente } from '@/lib/api';
+import { mensajeError, obtenerAvisos, obtenerCorreosPendientes, type CorreoPendiente, type SolicitudPendiente } from '@/lib/api';
 
 const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 export default function AvisosScreen() {
   const theme = useTheme();
 
-  const { data, error, isLoading } = useQuery({
-    queryKey: ['avisos'],
-    queryFn: obtenerAvisos,
-  });
+  const solicitudes = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos });
+  const correos = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes });
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="subtitle" style={[styles.cabecera, { color: theme.accent }]}>
-          Avisos
-        </ThemedText>
-
-        {isLoading && <ActivityIndicator color={theme.accent} style={styles.centro} />}
-
-        {error && (
-          <ThemedText type="small" themeColor="danger" style={styles.aviso}>
-            {mensajeError(error)}
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <ThemedText type="subtitle" style={{ color: theme.accent }}>
+            Avisos
           </ThemedText>
-        )}
 
-        {data?.aviso && (
-          <ThemedText type="small" themeColor="textSecondary" style={styles.aviso}>
-            ℹ️ {data.aviso}
-          </ThemedText>
-        )}
+          <Seccion titulo="Solicitudes sin revisar">
+            {solicitudes.isLoading && <ActivityIndicator color={theme.accent} />}
+            {solicitudes.error && (
+              <ThemedText type="small" themeColor="danger">
+                {mensajeError(solicitudes.error)}
+              </ThemedText>
+            )}
+            {solicitudes.data?.aviso && (
+              <ThemedText type="small" themeColor="textSecondary">
+                ℹ️ {solicitudes.data.aviso}
+              </ThemedText>
+            )}
+            {solicitudes.data?.conectado && solicitudes.data.solicitudes.length === 0 && (
+              <ThemedText type="small" themeColor="textSecondary">
+                No hay solicitudes pendientes de revisar.
+              </ThemedText>
+            )}
+            {solicitudes.data?.solicitudes.map((s) => <TarjetaSolicitud key={s.id} solicitud={s} />)}
+          </Seccion>
 
-        {data?.conectado && data.solicitudes.length === 0 && (
-          <ThemedText type="small" themeColor="textSecondary" style={styles.aviso}>
-            No hay solicitudes pendientes de revisar.
-          </ThemedText>
-        )}
-
-        {data && data.solicitudes.length > 0 && (
-          <FlatList
-            data={data.solicitudes}
-            keyExtractor={(s) => s.id}
-            contentContainerStyle={styles.lista}
-            renderItem={({ item }) => <TarjetaSolicitud solicitud={item} />}
-          />
-        )}
+          <Seccion titulo="Correos sin leer">
+            {correos.isLoading && <ActivityIndicator color={theme.accent} />}
+            {correos.error && (
+              <ThemedText type="small" themeColor="danger">
+                {mensajeError(correos.error)}
+              </ThemedText>
+            )}
+            {correos.data?.aviso && (
+              <ThemedText type="small" themeColor="textSecondary">
+                ℹ️ {correos.data.aviso}
+              </ThemedText>
+            )}
+            {correos.data?.conectado && correos.data.correos.length === 0 && (
+              <ThemedText type="small" themeColor="textSecondary">
+                No hay correos sin leer.
+              </ThemedText>
+            )}
+            {correos.data?.correos.map((c) => <TarjetaCorreo key={c.id} correo={c} />)}
+          </Seccion>
+        </ScrollView>
       </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <ThemedView style={styles.seccion}>
+      <ThemedText type="default" style={styles.tituloSeccion}>
+        {titulo}
+      </ThemedText>
+      {children}
     </ThemedView>
   );
 }
@@ -76,13 +98,26 @@ function TarjetaSolicitud({ solicitud }: { solicitud: SolicitudPendiente }) {
   );
 }
 
+function TarjetaCorreo({ correo }: { correo: CorreoPendiente }) {
+  return (
+    <ThemedView type="backgroundElement" style={styles.tarjeta}>
+      <ThemedView style={styles.filaSuperior}>
+        <ThemedText type="default">✉️ {correo.de}</ThemedText>
+      </ThemedView>
+      <ThemedText type="small">{correo.asunto}</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {correo.resumen}
+      </ThemedText>
+    </ThemedView>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safeArea: { flex: 1, paddingBottom: BottomTabInset },
-  cabecera: { padding: Spacing.four, paddingBottom: Spacing.two },
-  aviso: { lineHeight: 20, paddingHorizontal: Spacing.four },
-  centro: { marginTop: Spacing.five },
-  lista: { padding: Spacing.four, gap: Spacing.three },
+  safeArea: { flex: 1 },
+  scroll: { padding: Spacing.four, gap: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
+  seccion: { gap: Spacing.two },
+  tituloSeccion: { fontWeight: '600' },
   tarjeta: { borderRadius: Spacing.three, padding: Spacing.three, gap: Spacing.one },
   filaSuperior: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.two },
 });

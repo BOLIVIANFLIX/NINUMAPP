@@ -295,6 +295,23 @@ export async function actualizarPedidoPropio(id: string, body: PedidoPropioBody)
   return resp.data;
 }
 
+export interface CorreoPendiente {
+  id: string;
+  de: string;
+  asunto: string;
+  resumen: string;
+  fecha: string;
+}
+
+export interface RespuestaCorreos extends RespuestaConAviso<CorreoPendiente> {
+  correos: CorreoPendiente[];
+}
+
+export async function obtenerCorreosPendientes(): Promise<RespuestaCorreos> {
+  const resp = await api.get('/api/gmail/correos-pendientes');
+  return resp.data;
+}
+
 export function mensajeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     return (err.response?.data as { detail?: string } | undefined)?.detail ?? 'No se ha podido conectar con el servidor.';
