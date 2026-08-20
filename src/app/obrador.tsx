@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { InventarioAlbaran } from '@/components/inventario-albaran';
+import { InventarioTicket } from '@/components/inventario-ticket';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
@@ -10,11 +13,17 @@ import { mensajeError, obtenerAlarmas, obtenerRecetas } from '@/lib/api';
 
 const fechaHora = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+type Vista = 'obrador' | 'ticket' | 'albaran';
+
 export default function ObradorScreen() {
   const theme = useTheme();
+  const [vista, setVista] = useState<Vista>('obrador');
 
   const alarmas = useQuery({ queryKey: ['obrador', 'alarmas'], queryFn: obtenerAlarmas });
   const recetas = useQuery({ queryKey: ['obrador', 'recetas'], queryFn: obtenerRecetas });
+
+  if (vista === 'ticket') return <InventarioTicket onVolver={() => setVista('obrador')} />;
+  if (vista === 'albaran') return <InventarioAlbaran onVolver={() => setVista('obrador')} />;
 
   return (
     <ThemedView style={styles.container}>
@@ -81,6 +90,25 @@ export default function ObradorScreen() {
             <ThemedText type="small" themeColor="textSecondary">
               ℹ️ Coste real por hora: próximamente.
             </ThemedText>
+          </Seccion>
+
+          <Seccion titulo="Inventario">
+            <Pressable onPress={() => setVista('ticket')}>
+              <ThemedView type="backgroundElement" style={styles.fila}>
+                <ThemedText type="default">📷 Escanear ticket de compra</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Suma lo comprado al stock de Grocy.
+                </ThemedText>
+              </ThemedView>
+            </Pressable>
+            <Pressable onPress={() => setVista('albaran')}>
+              <ThemedView type="backgroundElement" style={styles.fila}>
+                <ThemedText type="default">📷 Escanear mi albarán</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Descuenta los ingredientes de las recetas entregadas.
+                </ThemedText>
+              </ThemedView>
+            </Pressable>
           </Seccion>
         </ScrollView>
       </SafeAreaView>

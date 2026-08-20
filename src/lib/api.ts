@@ -181,6 +181,49 @@ export async function obtenerAvisos(): Promise<RespuestaAvisos> {
   return resp.data;
 }
 
+export interface LineaTicket {
+  producto_leido: string;
+  cantidad: number;
+  precio_unitario: number | null;
+  producto_id: number | null;
+  producto_nombre: string | null;
+  confianza: number;
+}
+
+export interface LineaAlbaran {
+  producto_leido: string;
+  cantidad: number;
+  receta_id: number | null;
+  receta_nombre: string | null;
+  confianza: number;
+}
+
+/** FormData con la foto -- se sube tal cual, sin fijar Content-Type a mano (axios/RN
+ * ponen el boundary multipart correcto solas; fijarlo aquí lo rompería). */
+function formDataDeFoto(uri: string): FormData {
+  const datos = new FormData();
+  datos.append('imagen', { uri, name: 'foto.jpg', type: 'image/jpeg' } as unknown as Blob);
+  return datos;
+}
+
+export async function escanearTicket(uri: string): Promise<LineaTicket[]> {
+  const resp = await api.post('/api/inventario/ticket/escanear', formDataDeFoto(uri));
+  return resp.data.lineas;
+}
+
+export async function confirmarTicket(lineas: { producto_id: number; cantidad: number; precio_unitario: number | null }[]): Promise<void> {
+  await api.post('/api/inventario/ticket/confirmar', { lineas });
+}
+
+export async function escanearAlbaran(uri: string): Promise<LineaAlbaran[]> {
+  const resp = await api.post('/api/inventario/albaran/escanear', formDataDeFoto(uri));
+  return resp.data.lineas;
+}
+
+export async function confirmarAlbaran(lineas: { receta_id: number; cantidad: number }[]): Promise<void> {
+  await api.post('/api/inventario/albaran/confirmar', { lineas });
+}
+
 export function mensajeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     return (err.response?.data as { detail?: string } | undefined)?.detail ?? 'No se ha podido conectar con el servidor.';

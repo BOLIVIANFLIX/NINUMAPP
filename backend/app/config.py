@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     grocy_url: str = ""
     grocy_api_key: str = ""
 
+    # Gemini (capa gratuita) para leer tickets de compra y albaranes con la cámara --
+    # ver services/gemini.py. Igual que HA/Grocy: si no está configurada, Inventario
+    # avisa en vez de romper el resto de la app.
+    gemini_api_key: str = ""
+
     # Conexión de solo lectura a la Supabase de la web (proyecto NINUMAWEB/WBD,
     # fuera de este repo) -- rol dedicado "ninumapp_lectura" (ver
     # WBD/supabase/migrations/038_rol_lectura_ninumapp.sql), nunca la service_role
