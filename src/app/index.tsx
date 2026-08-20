@@ -51,9 +51,10 @@ export default function InicioScreen() {
 
           {resumen && (
             <ThemedView type="backgroundElement" style={styles.tarjetas}>
-              <Tarjeta titulo="Ingresos sin IVA (mes)" valor={eur.format(resumen.ingresos_sin_iva_mes)} />
+              <Tarjeta titulo="Ingresos del mes (con IVA)" valor={eur.format(resumen.ingresos_con_iva_mes)} />
+              <Tarjeta titulo="Pedidos confirmados (mes)" valor={String(resumen.pedidos_confirmados_mes)} />
               <Tarjeta titulo="Facturas pendientes de cobro" valor={String(resumen.facturas_pendientes_cobro)} />
-              <Tarjeta titulo="Contactos sin resolver" valor={String(resumen.contactos_sin_resolver)} />
+              <Tarjeta titulo="Solicitudes sin revisar" valor={String(resumen.solicitudes_pendientes)} />
             </ThemedView>
           )}
 

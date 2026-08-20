@@ -96,10 +96,11 @@ export async function logout(refreshToken: string): Promise<void> {
 
 export interface Resumen {
   usuario: string;
-  ingresos_sin_iva_mes: number;
+  ingresos_con_iva_mes: number;
+  pedidos_confirmados_mes: number;
   facturas_pendientes_cobro: number;
-  contactos_sin_resolver: number;
-  aviso: string;
+  solicitudes_pendientes: number;
+  aviso: string | null;
 }
 
 export async function obtenerResumen(): Promise<Resumen> {
