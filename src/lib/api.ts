@@ -13,7 +13,10 @@ import { tokenStore } from '@/lib/token-store';
 // dispositivo físico o en web, localhost normal. Cuando haya VPS, EXPO_PUBLIC_API_URL
 // pasa a ser la URL fija del servidor.
 const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
-export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? `http://${DEV_HOST}:8000`;
+// || (no ??) a propósito: un .env con la variable presente pero vacía ("=" sin
+// valor, caso normal en desarrollo) da process.env.EXPO_PUBLIC_API_URL === '' --
+// ?? no trata eso como "sin valor" y se quedaría con una baseURL vacía.
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || `http://${DEV_HOST}:8000`;
 
 export const api = axios.create({ baseURL: API_URL });
 
@@ -101,6 +104,63 @@ export interface Resumen {
 
 export async function obtenerResumen(): Promise<Resumen> {
   const resp = await api.get('/api/resumen');
+  return resp.data;
+}
+
+export interface Pedido {
+  id: string;
+  status: string;
+  creado_en: string;
+  total_cents: number;
+  locator: string | null;
+  kind: string;
+  recogida_fecha: string | null;
+  payment_status: string | null;
+  descripcion: string | null;
+  cliente: string;
+}
+
+export interface RespuestaConAviso<T> {
+  conectado: boolean;
+  aviso: string | null;
+}
+
+export interface RespuestaPedidos extends RespuestaConAviso<Pedido> {
+  pedidos: Pedido[];
+}
+
+export async function obtenerPedidos(): Promise<RespuestaPedidos> {
+  const resp = await api.get('/api/pedidos');
+  return resp.data;
+}
+
+export interface AlarmaHA {
+  entity_id: string;
+  nombre: string;
+  ultima_vez: string | null;
+}
+
+export interface RespuestaAlarmas extends RespuestaConAviso<AlarmaHA> {
+  alarmas: AlarmaHA[];
+}
+
+export async function obtenerAlarmas(): Promise<RespuestaAlarmas> {
+  const resp = await api.get('/api/obrador/alarmas');
+  return resp.data;
+}
+
+export interface Receta {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+}
+
+export interface RespuestaRecetas extends RespuestaConAviso<Receta> {
+  recetas: Receta[];
+}
+
+export async function obtenerRecetas(): Promise<RespuestaRecetas> {
+  const resp = await api.get('/api/obrador/recetas');
   return resp.data;
 }
 

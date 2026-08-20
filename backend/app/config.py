@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     grocy_url: str = ""
     grocy_api_key: str = ""
 
+    # Conexión de solo lectura a la Supabase de la web (proyecto NINUMAWEB/WBD,
+    # fuera de este repo) -- rol dedicado "ninumapp_lectura" (ver
+    # WBD/supabase/migrations/038_rol_lectura_ninumapp.sql), nunca la service_role
+    # key. Igual que HA/Grocy: si no está configurada, Pedidos se queda "sin datos"
+    # en vez de romper el resto de la app.
+    supabase_db_host: str = ""
+    supabase_db_port: int = 5432
+    supabase_db_name: str = "postgres"
+    supabase_db_user: str = "ninumapp_lectura"
+    supabase_db_password: str = ""
+
     # Login: mismo criterio que ninuma-agente (ver auditoría de seguridad
     # 2026-08-19) -- bloqueo tras varios intentos fallidos, doble factor obligatorio.
     login_max_intentos: int = 5
