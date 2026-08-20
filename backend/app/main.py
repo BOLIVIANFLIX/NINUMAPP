@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
 from app.database import Base, engine
 from app.routers import auth, avisos, clientes, gmail, inventario, obrador, pedidos, pedidos_propios, resumen
 
@@ -16,11 +17,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="NINUMAPP API", lifespan=lifespan)
 
-# En desarrollo la app de Expo corre en el propio ordenador/emulador -- orígenes
-# variables. Restringir esto de verdad cuando haya un dominio fijo en el VPS.
+# "*" por defecto (desarrollo -- Expo corre en orígenes variables). En producción,
+# ALLOWED_ORIGINS en .env lo restringe al dominio real.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.lista_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

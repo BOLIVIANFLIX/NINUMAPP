@@ -54,5 +54,14 @@ class Settings(BaseSettings):
     access_token_minutos: int = 20
     refresh_token_dias: int = 60
 
+    # "*" en desarrollo (Expo corre en orígenes variables: localhost, la IP del
+    # emulador, etc.). En producción se fija a la lista real separada por comas
+    # (p.ej. "https://ninumapp.tunga.es") vía ALLOWED_ORIGINS en .env.
+    allowed_origins: str = "*"
+
+    @property
+    def lista_allowed_origins(self) -> list[str]:
+        return [o.strip() for o in self.allowed_origins.split(",")]
+
 
 settings = Settings()
