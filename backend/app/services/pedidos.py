@@ -13,7 +13,7 @@ from typing import TypedDict
 
 import asyncpg
 
-from app.config import settings
+from app.services import supabase_db
 
 
 class Pedido(TypedDict):
@@ -27,17 +27,6 @@ class Pedido(TypedDict):
     payment_status: str | None
     descripcion: str | None
     cliente: str
-
-
-async def _conectar() -> asyncpg.Connection:
-    return await asyncpg.connect(
-        host=settings.supabase_db_host,
-        port=settings.supabase_db_port,
-        database=settings.supabase_db_name,
-        user=settings.supabase_db_user,
-        password=settings.supabase_db_password,
-        timeout=5,
-    )
 
 
 _CONSULTA = """
@@ -59,11 +48,11 @@ async def pedidos_confirmados() -> tuple[list[Pedido], bool]:
     """Devuelve (pedidos, conectado). B2B (confirmados por construcción, ver
     NINUMAWEB) + cualquier pedido (encargo, tienda, edición) con pago recibido o
     confirmado a mano por Ariadna -- nunca solicitudes sin revisar ni sin pagar."""
-    if not settings.supabase_db_host or not settings.supabase_db_password:
+    if not supabase_db.configurada():
         return [], False
 
     try:
-        conn = await _conectar()
+        conn = await supabase_db.conectar()
     except (OSError, asyncpg.PostgresError):
         return [], False
 

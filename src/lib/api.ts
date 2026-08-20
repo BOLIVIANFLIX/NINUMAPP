@@ -164,6 +164,22 @@ export async function obtenerRecetas(): Promise<RespuestaRecetas> {
   return resp.data;
 }
 
+export interface SolicitudPendiente {
+  id: string;
+  creado_en: string;
+  descripcion: string | null;
+  cliente: string;
+}
+
+export interface RespuestaAvisos extends RespuestaConAviso<SolicitudPendiente> {
+  solicitudes: SolicitudPendiente[];
+}
+
+export async function obtenerAvisos(): Promise<RespuestaAvisos> {
+  const resp = await api.get('/api/avisos');
+  return resp.data;
+}
+
 export function mensajeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     return (err.response?.data as { detail?: string } | undefined)?.detail ?? 'No se ha podido conectar con el servidor.';

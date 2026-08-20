@@ -2,14 +2,14 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
+import { useTabBadges } from '@/hooks/use-tab-badges';
 
 // Iconos nativos de cada plataforma (SF Symbols en iOS, Material Icons en Android) --
-// sin assets propios que mantener. Badges numéricos en Obrador (alertas de Home
-// Assistant/materia prima) y Avisos (pedidos/notificaciones pendientes) se activan
-// más adelante, cuando esas pantallas tengan datos reales que contar.
+// sin assets propios que mantener.
 export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const badges = useTabBadges();
 
   return (
     <NativeTabs
@@ -29,6 +29,7 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="obrador">
         <NativeTabs.Trigger.Label>Obrador</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="flame.fill" md="local_fire_department" />
+        <NativeTabs.Trigger.Badge hidden={badges.obrador === 0}>{String(badges.obrador)}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="calendario">
@@ -39,6 +40,7 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="avisos">
         <NativeTabs.Trigger.Label>Avisos</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="bell.fill" md="notifications" />
+        <NativeTabs.Trigger.Badge hidden={badges.avisos === 0}>{String(badges.avisos)}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
