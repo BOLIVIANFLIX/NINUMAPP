@@ -224,6 +224,77 @@ export async function confirmarAlbaran(lineas: { receta_id: number; cantidad: nu
   await api.post('/api/inventario/albaran/confirmar', { lineas });
 }
 
+export interface Cliente {
+  id: string;
+  nombre: string;
+  empresa: string | null;
+  telefono: string | null;
+  email: string | null;
+  nif: string | null;
+  notas: string | null;
+  creado_en: string;
+}
+
+export interface ClienteBody {
+  nombre: string;
+  empresa?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  nif?: string | null;
+  notas?: string | null;
+}
+
+export async function obtenerClientes(): Promise<Cliente[]> {
+  const resp = await api.get('/api/clientes');
+  return resp.data;
+}
+
+export async function crearCliente(body: ClienteBody): Promise<Cliente> {
+  const resp = await api.post('/api/clientes', body);
+  return resp.data;
+}
+
+export async function actualizarCliente(id: string, body: ClienteBody): Promise<Cliente> {
+  const resp = await api.put(`/api/clientes/${id}`, body);
+  return resp.data;
+}
+
+export type EstadoPedidoPropio = 'pendiente' | 'confirmado' | 'entregado' | 'cobrado';
+
+export interface PedidoPropio {
+  id: string;
+  cliente_id: string;
+  cliente_nombre: string;
+  descripcion: string;
+  total_cents: number;
+  fecha_entrega: string | null;
+  estado: EstadoPedidoPropio;
+  creado_en: string;
+}
+
+export interface PedidoPropioBody {
+  cliente_id: string;
+  descripcion: string;
+  total_cents: number;
+  fecha_entrega?: string | null;
+  estado: EstadoPedidoPropio;
+}
+
+export async function obtenerPedidosPropios(): Promise<PedidoPropio[]> {
+  const resp = await api.get('/api/pedidos-propios');
+  return resp.data;
+}
+
+export async function crearPedidoPropio(body: PedidoPropioBody): Promise<PedidoPropio> {
+  const resp = await api.post('/api/pedidos-propios', body);
+  return resp.data;
+}
+
+export async function actualizarPedidoPropio(id: string, body: PedidoPropioBody): Promise<PedidoPropio> {
+  const resp = await api.put(`/api/pedidos-propios/${id}`, body);
+  return resp.data;
+}
+
 export function mensajeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     return (err.response?.data as { detail?: string } | undefined)?.detail ?? 'No se ha podido conectar con el servidor.';
