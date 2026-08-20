@@ -34,7 +34,11 @@ async def recetas() -> tuple[list[Receta], bool]:
     except (httpx.HTTPError, ValueError):
         return [], False
 
+    # type='normal' son recetas de verdad -- Grocy también devuelve aquí sus propias
+    # entradas internas de planificador semanal (type='mealplan-week'/'mealplan-day'),
+    # que no son recetas y no deben aparecer en la lista.
     return [
         Receta(id=int(o["id"]), nombre=o["name"], descripcion=o.get("description"))
         for o in objetos
+        if o.get("type") == "normal"
     ], True
