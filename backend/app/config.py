@@ -18,10 +18,16 @@ class Settings(BaseSettings):
     grocy_api_key: str = ""
 
     # Login: mismo criterio que ninuma-agente (ver auditoría de seguridad
-    # 2026-08-19) -- bloqueo tras varios intentos fallidos, doble factor
-    # obligatorio, sesión sin caducar sola.
+    # 2026-08-19) -- bloqueo tras varios intentos fallidos, doble factor obligatorio.
     login_max_intentos: int = 5
     login_ventana_minutos: int = 15
+
+    # Access Token (JWT, corto) + Refresh Token (opaco, largo) -- ver app/auth.py.
+    # jwt_secret debe fijarse de verdad en producción (.env) -- el valor por defecto
+    # solo vale para desarrollo local, nunca desplegar con este.
+    jwt_secret: str = "SOLO-PARA-DESARROLLO-CAMBIAR-EN-.ENV"
+    access_token_minutos: int = 20
+    refresh_token_dias: int = 60
 
 
 settings = Settings()

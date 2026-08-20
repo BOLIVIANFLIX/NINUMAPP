@@ -4,16 +4,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ApiError, login, verificarTotp } from '@/lib/api';
+import { login, mensajeError, verificarTotp } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 type Paso = 'credenciales' | 'totp';
 
 export function LoginScreen() {
   const theme = useTheme();
-  const { guardarToken } = useAuth();
+  const { completarLogin } = useAuth();
 
   const [paso, setPaso] = useState<Paso>('credenciales');
   const [usuario, setUsuario] = useState('');
@@ -33,7 +33,7 @@ export function LoginScreen() {
       setTotpUri(resultado.configurando_totp ? (resultado.totp_uri ?? null) : null);
       setPaso('totp');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se ha podido conectar con el servidor.');
+      setError(mensajeError(err));
     } finally {
       setCargando(false);
     }
@@ -44,9 +44,9 @@ export function LoginScreen() {
     setCargando(true);
     try {
       const resultado = await verificarTotp(tokenPendiente, codigo.trim(), Platform.OS);
-      await guardarToken(resultado.token_sesion);
+      await completarLogin(resultado.access_token, resultado.refresh_token);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se ha podido conectar con el servidor.');
+      setError(mensajeError(err));
     } finally {
       setCargando(false);
     }

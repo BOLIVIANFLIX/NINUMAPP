@@ -1,23 +1,41 @@
 """Autenticación de NINUMAPP -- código propio, independiente del auth.py de
-ninuma-agente, pero con el mismo nivel de seguridad ya auditado ahí el 2026-08-19:
-bloqueo tras varios intentos fallidos (por usuario Y global, para frenar fuerza bruta
-contra usuarios distintos), comprobación en tiempo constante aunque el usuario no
-exista (para no filtrar qué usuarios hay por la diferencia de tiempo de respuesta), y
-doble factor (TOTP) obligatorio antes de crear una sesión real."""
+ninuma-agente, con el mismo nivel de seguridad ya auditado ahí el 2026-08-19
+(bloqueo tras varios intentos fallidos, tiempo constante, doble factor obligatorio),
+más el modelo Access Token + Refresh Token acordado el 2026-08-20 para poder
+desbloquear la app con biometría en vez de usuario+contraseña+TOTP cada vez.
 
+Cómo encajan las dos piezas:
+- Access Token: un JWT firmado, vive poco (ACCESS_TOKEN_MINUTOS) y NUNCA se guarda en
+  base de datos -- se valida solo comprobando la firma y la caducidad, sin ninguna
+  consulta. Es lo que la app manda en cada petición normal.
+- Refresh Token: una cadena aleatoria opaca, vive semanas (REFRESH_TOKEN_DIAS), y SÍ
+  se guarda -- pero solo su hash (sha256), nunca el valor real, igual que una
+  contraseña. Es lo único que la app guarda de verdad en el móvil (Keystore/Keychain,
+  ver expo-secure-store), y con la huella/rostro del usuario (expo-local-authentication
+  en la app) puede canjearse por un access token nuevo sin volver a pedir contraseña
+  ni TOTP -- la biometría desbloquea el uso del refresh token guardado, nunca
+  sustituye al login real la primera vez.
+- Rotación: cada vez que se usa un refresh token para pedir un access token nuevo, se
+  marca usado y se emite uno nuevo (rotar). Si alguna vez se reutiliza uno ya usado,
+  es la señal clásica de que ese token se ha filtrado -- se revocan todos los del
+  usuario de golpe."""
+
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
+import jwt
 import pyotp
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import IntentoFallido, LoginPendiente, Sesion, Usuario
+from app.models import IntentoFallido, LoginPendiente, RefreshToken, Usuario
 
 _CLAVE_GLOBAL = "__global__"
 LOGIN_PENDIENTE_MINUTOS = 5
+_JWT_ALGORITMO = "HS256"
 
 # bcrypt trunca en 72 bytes -- se corta explícitamente en vez de dejar que falle o
 # (peor) que trunque en un punto distinto al comparar luego.
@@ -44,8 +62,86 @@ def verificar_totp(secret: str, codigo: str) -> bool:
     return pyotp.TOTP(secret).verify(codigo, valid_window=1)
 
 
+def _ahora() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# ---------- Access Token (JWT) ----------
+
+def crear_access_token(usuario_id: str) -> str:
+    expira = _ahora() + timedelta(minutes=settings.access_token_minutos)
+    return jwt.encode({"sub": usuario_id, "exp": expira}, settings.jwt_secret, algorithm=_JWT_ALGORITMO)
+
+
+def usuario_id_de_access_token(token: str) -> str | None:
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[_JWT_ALGORITMO])
+    except jwt.PyJWTError:
+        return None
+    return payload.get("sub")
+
+
+# ---------- Refresh Token (opaco, hash en base de datos) ----------
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+async def _crear_refresh_token(db: AsyncSession, usuario_id: str, dispositivo: str | None) -> str:
+    crudo = secrets.token_urlsafe(48)
+    fila = RefreshToken(
+        usuario_id=usuario_id,
+        token_hash=_hash_token(crudo),
+        dispositivo=dispositivo,
+        expira_en=_ahora() + timedelta(days=settings.refresh_token_dias),
+    )
+    db.add(fila)
+    await db.commit()
+    return crudo
+
+
+async def refrescar_token(db: AsyncSession, refresh_token: str, dispositivo: str | None) -> dict:
+    """Canjea un refresh token válido por un access token nuevo, y rota el propio
+    refresh token (el antiguo queda inservible, se entrega uno nuevo). Si el token
+    que llega ya estaba marcado como usado, se interpreta como un robo -- se revocan
+    TODOS los refresh tokens de ese usuario, para que un atacante que capturó un
+    token viejo no pueda seguir usándolo ni aunque la usuaria real ya haya rotado
+    el suyo."""
+    resultado = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == _hash_token(refresh_token)))
+    fila = resultado.scalar_one_or_none()
+    if not fila:
+        return {"ok": False, "motivo": "token_invalido"}
+
+    if fila.revocado or (fila.usado_en is not None):
+        await db.execute(update(RefreshToken).where(RefreshToken.usuario_id == fila.usuario_id).values(revocado=True))
+        await db.commit()
+        return {"ok": False, "motivo": "token_reutilizado_revocado_todo"}
+
+    if fila.expira_en < _ahora():
+        return {"ok": False, "motivo": "token_caducado"}
+
+    fila.usado_en = _ahora()
+    fila.revocado = True
+    nuevo_refresh = await _crear_refresh_token(db, fila.usuario_id, dispositivo)
+    await db.commit()
+
+    return {
+        "ok": True,
+        "access_token": crear_access_token(fila.usuario_id),
+        "refresh_token": nuevo_refresh,
+    }
+
+
+async def revocar_refresh_token(db: AsyncSession, refresh_token: str) -> None:
+    """Logout -- invalida solo este refresh token (este dispositivo), no todos."""
+    await db.execute(update(RefreshToken).where(RefreshToken.token_hash == _hash_token(refresh_token)).values(revocado=True))
+    await db.commit()
+
+
+# ---------- bloqueo por fuerza bruta ----------
+
 async def _n_intentos_recientes(db: AsyncSession, clave: str) -> int:
-    desde = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=settings.login_ventana_minutos)
+    desde = _ahora() - timedelta(minutes=settings.login_ventana_minutos)
     resultado = await db.execute(
         select(func.count()).select_from(IntentoFallido).where(IntentoFallido.clave == clave, IntentoFallido.creado_en >= desde)
     )
@@ -63,6 +159,8 @@ async def registrar_intento_fallido(db: AsyncSession, usuario: str) -> None:
     db.add(IntentoFallido(clave=_CLAVE_GLOBAL))
     await db.commit()
 
+
+# ---------- flujo de login ----------
 
 async def obtener_usuario(db: AsyncSession, usuario: str) -> Usuario | None:
     resultado = await db.execute(select(Usuario).where(Usuario.usuario == usuario.strip().lower()))
@@ -105,7 +203,7 @@ async def _login_pendiente_valido(db: AsyncSession, token_pendiente: str) -> Log
     pendiente = resultado.scalar_one_or_none()
     if not pendiente:
         return None
-    limite = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=LOGIN_PENDIENTE_MINUTOS)
+    limite = _ahora() - timedelta(minutes=LOGIN_PENDIENTE_MINUTOS)
     if pendiente.creado_en < limite:
         return None
     return pendiente
@@ -125,19 +223,18 @@ async def verificar_totp_pendiente(db: AsyncSession, token_pendiente: str, codig
         await registrar_intento_fallido(db, fila.usuario)
         return {"ok": False, "motivo": "codigo_incorrecto"}
 
-    sesion = Sesion(usuario_id=fila.id, dispositivo=dispositivo)
-    db.add(sesion)
     await db.execute(delete(LoginPendiente).where(LoginPendiente.token_pendiente == token_pendiente))
     await db.commit()
-    return {"ok": True, "token_sesion": sesion.token}
+
+    return {
+        "ok": True,
+        "access_token": crear_access_token(fila.id),
+        "refresh_token": await _crear_refresh_token(db, fila.id, dispositivo),
+    }
 
 
-async def usuario_de_sesion(db: AsyncSession, token: str) -> Usuario | None:
-    resultado = await db.execute(select(Sesion).where(Sesion.token == token))
-    sesion = resultado.scalar_one_or_none()
-    if not sesion:
-        return None
-    resultado = await db.execute(select(Usuario).where(Usuario.id == sesion.usuario_id))
+async def usuario_de_id(db: AsyncSession, usuario_id: str) -> Usuario | None:
+    resultado = await db.execute(select(Usuario).where(Usuario.id == usuario_id))
     return resultado.scalar_one_or_none()
 
 

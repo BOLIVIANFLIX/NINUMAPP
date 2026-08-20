@@ -33,23 +33,31 @@ class Usuario(Base):
     totp_secret: Mapped[str | None] = mapped_column(String, nullable=True)
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora)
 
-    sesiones: Mapped[list["Sesion"]] = relationship(back_populates="usuario", cascade="all, delete-orphan")
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="usuario", cascade="all, delete-orphan")
 
 
-class Sesion(Base):
-    """Token de sesión opaco (no JWT con caducidad fija) -- misma decisión que
-    ninuma-agente: no caduca sola, solo se cierra a mano (logout) o se revoca. Un
-    registro por dispositivo/login, para poder ver "sesiones activas" y cerrar una
-    en concreto sin afectar a las demás."""
+class RefreshToken(Base):
+    """Modelo Access Token (JWT, vive minutos, nunca se guarda en base de datos) +
+    Refresh Token (opaco, vive semanas, SÍ se guarda -- pero solo su hash, nunca el
+    valor real, igual que una contraseña) -- ver app/auth.py.
 
-    __tablename__ = "sesiones"
+    Rotación: cada vez que se usa un refresh token para pedir un access token nuevo,
+    ESE refresh token se marca usado y se emite uno nuevo (rotate_de). Si alguna vez
+    se reutiliza uno ya usado, es la señal clásica de un token robado -- se revocan
+    todos los de ese usuario (ver auth.refrescar_token)."""
 
-    token: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: secrets.token_urlsafe(32))
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     usuario_id: Mapped[str] = mapped_column(String, ForeignKey("usuarios.id"))
+    token_hash: Mapped[str] = mapped_column(String, unique=True, index=True)
     dispositivo: Mapped[str | None] = mapped_column(String, nullable=True)
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora)
+    expira_en: Mapped[datetime] = mapped_column(DateTime)
+    usado_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revocado: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    usuario: Mapped["Usuario"] = relationship(back_populates="sesiones")
+    usuario: Mapped["Usuario"] = relationship(back_populates="refresh_tokens")
 
 
 class LoginPendiente(Base):

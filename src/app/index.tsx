@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Pressable, RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,35 +6,18 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ApiError, obtenerResumen, type Resumen } from '@/lib/api';
+import { mensajeError, obtenerResumen } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
 export default function InicioScreen() {
   const theme = useTheme();
-  const { token, cerrarSesion } = useAuth();
-  const [resumen, setResumen] = useState<Resumen | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const { cerrarSesion } = useAuth();
 
-  const cargar = useCallback(async () => {
-    if (!token) return;
-    setCargando(true);
-    setError(null);
-    try {
-      setResumen(await obtenerResumen(token));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se ha podido conectar con el servidor.');
-    } finally {
-      setCargando(false);
-    }
-  }, [token]);
-
-  // useState con inicializador de función evitaría el warning de deps, pero aquí
-  // basta con cargar una vez al montar -- pantalla única de momento.
-  useState(() => {
-    cargar();
+  const { data: resumen, error, isFetching, refetch } = useQuery({
+    queryKey: ['resumen'],
+    queryFn: obtenerResumen,
   });
 
   return (
@@ -42,7 +25,7 @@ export default function InicioScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scroll}
-          refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={theme.accent} />}>
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={theme.accent} />}>
           <ThemedView style={styles.cabecera}>
             <ThemedText type="subtitle" style={{ color: theme.accent }}>
               Inicio
@@ -62,7 +45,7 @@ export default function InicioScreen() {
 
           {error && (
             <ThemedText type="small" themeColor="danger" style={styles.aviso}>
-              {error}
+              {mensajeError(error)}
             </ThemedText>
           )}
 

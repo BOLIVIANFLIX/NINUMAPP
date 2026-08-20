@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -11,15 +12,24 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 
 SplashScreen.preventAutoHideAsync();
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000, // 30s -- los datos del negocio no cambian tan rápido como para pedirlos en cada render
+    },
+  },
+});
+
 function Contenido() {
-  const { token, cargando } = useAuth();
+  const { estado } = useAuth();
   const theme = useTheme();
 
   useEffect(() => {
-    if (!cargando) SplashScreen.hideAsync();
-  }, [cargando]);
+    if (estado !== 'cargando') SplashScreen.hideAsync();
+  }, [estado]);
 
-  if (cargando) {
+  if (estado === 'cargando') {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}>
         <ActivityIndicator color={theme.accent} />
@@ -27,7 +37,7 @@ function Contenido() {
     );
   }
 
-  return token ? <AppTabs /> : <LoginScreen />;
+  return estado === 'autenticado' ? <AppTabs /> : <LoginScreen />;
 }
 
 export default function TabLayout() {
@@ -35,9 +45,11 @@ export default function TabLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
-      <AuthProvider>
-        <Contenido />
-      </AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Contenido />
+        </AuthProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }
