@@ -9,24 +9,47 @@ import { Platform } from 'react-native';
 
 // #b5457a es el rosa de marca de NINUMÁ (mismo acento que la web/TWA actual) --
 // NINUMAPP es un proyecto de código independiente, pero mantiene la identidad visual.
+// Tokens calcados del mockup aprobado (ninuma-agente/design/ninuma-app-propuesta.html):
+// fondo de pantalla gris iOS, tarjetas blancas, un acento de marca y los mismos colores
+// de estado (verde/amarillo/rojo/azul) que ya usa el calendario.
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#1C1C1E',
+    textSecondary: '#8E8E93',
+    background: '#F2F2F7',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#E9E9EE',
+    separator: '#E5E5EA',
     accent: '#b5457a',
+    accentSoft: '#F6E3EC',
     danger: '#FF3B30',
+    dangerSoft: '#FFE9E8',
+    success: '#34C759',
+    successSoft: '#E3F8E9',
+    warning: '#FF9F0A',
+    warningSoft: '#FFF2E0',
+    warningText: '#A15C00',
+    info: '#5B8FD4',
+    infoSoft: '#E7EFFA',
   },
   dark: {
-    text: '#ffffff',
+    text: '#FFFFFF',
+    textSecondary: '#8E8E93',
     background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-    accent: '#e07aa8',
+    backgroundElement: '#1C1C1E',
+    backgroundSelected: '#2C2C2E',
+    separator: '#38383A',
+    accent: '#e88bb2',
+    accentSoft: '#3A2530',
     danger: '#FF453A',
+    dangerSoft: '#3A1F1D',
+    success: '#30D158',
+    successSoft: '#132A17',
+    warning: '#FF9F0A',
+    warningSoft: '#332405',
+    warningText: '#FF9F0A',
+    info: '#5B8FD4',
+    infoSoft: '#1B2636',
   },
 } as const;
 

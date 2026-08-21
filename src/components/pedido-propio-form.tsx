@@ -76,7 +76,7 @@ export function PedidoPropioFormulario({ pedido, onVolver }: { pedido: PedidoPro
               ← Pedidos
             </ThemedText>
           </Pressable>
-          <ThemedText type="subtitle" style={{ color: theme.accent }}>
+          <ThemedText type="title" style={{ fontSize: 26, lineHeight: 31 }}>
             {pedido ? 'Editar pedido' : 'Nuevo pedido'}
           </ThemedText>
 
@@ -115,7 +115,7 @@ export function PedidoPropioFormulario({ pedido, onVolver }: { pedido: PedidoPro
               value={descripcion}
               onChangeText={setDescripcion}
               multiline
-              style={[styles.input, styles.inputMultilinea, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              style={[styles.input, styles.inputMultilinea, { color: theme.text, backgroundColor: theme.backgroundElement }]}
             />
           </ThemedView>
 
@@ -127,7 +127,7 @@ export function PedidoPropioFormulario({ pedido, onVolver }: { pedido: PedidoPro
               value={total}
               onChangeText={setTotal}
               keyboardType="decimal-pad"
-              style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
             />
           </ThemedView>
 
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingBottom: BottomTabInset },
   formulario: { padding: Spacing.four, gap: Spacing.three, paddingBottom: BottomTabInset + Spacing.four },
   campo: { gap: Spacing.two },
-  input: { borderWidth: 1, borderRadius: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, fontSize: 16 },
+  input: { borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three, fontSize: 16 },
   inputMultilinea: { minHeight: 80, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   chip: { borderWidth: 1, borderRadius: Spacing.five, paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },

@@ -21,6 +21,7 @@ Flujo de autorización (una sola vez, a mano):
    app) -- el refresh_token resultante se guarda en `.env` y ya no hace falta
    repetir nada de esto salvo que se revoque el acceso."""
 
+import html
 from typing import TypedDict
 
 import httpx
@@ -123,7 +124,7 @@ async def correos_pendientes(limite: int = 20) -> tuple[list[CorreoPendiente], b
                         id=id_,
                         de=cabeceras_msg.get("From", "?"),
                         asunto=cabeceras_msg.get("Subject", "(sin asunto)"),
-                        resumen=datos.get("snippet", ""),
+                        resumen=html.unescape(datos.get("snippet", "")),
                         fecha=cabeceras_msg.get("Date", ""),
                     )
                 )

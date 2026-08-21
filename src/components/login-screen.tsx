@@ -71,7 +71,7 @@ export function LoginScreen() {
               autoCorrect={false}
               value={usuario}
               onChangeText={setUsuario}
-              style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
             />
             <TextInput
               placeholder="Contraseña"
@@ -79,7 +79,7 @@ export function LoginScreen() {
               secureTextEntry
               value={password}
               onChangeText={setPassword}
-              style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
               onSubmitEditing={enviarCredenciales}
             />
             <BotonPrincipal onPress={enviarCredenciales} cargando={cargando} disabled={!usuario || !password} texto="Entrar" />
@@ -100,7 +100,7 @@ export function LoginScreen() {
               maxLength={6}
               value={codigo}
               onChangeText={setCodigo}
-              style={[styles.input, styles.inputCodigo, { color: theme.text, borderColor: theme.backgroundSelected }]}
+              style={[styles.input, styles.inputCodigo, { color: theme.text, backgroundColor: theme.backgroundElement }]}
               onSubmitEditing={enviarCodigo}
             />
             <BotonPrincipal onPress={enviarCodigo} cargando={cargando} disabled={codigo.length !== 6} texto="Verificar" />
@@ -153,8 +153,7 @@ const styles = StyleSheet.create({
   subtitulo: { marginBottom: Spacing.four },
   form: { gap: Spacing.three },
   input: {
-    borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: 14,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
     fontSize: 16,
