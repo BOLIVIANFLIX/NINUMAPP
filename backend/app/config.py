@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     login_max_intentos: int = 5
     login_ventana_minutos: int = 15
 
+    # Cifras financieras y clientes profesionales viven en la SQLite de ninuma-agente
+    # (proyecto aparte, en la Raspberry), no en Supabase ni en la BD propia de
+    # NINUMAPP -- se leen vía los endpoints /api/ninumapp/* que expone ese proyecto
+    # (ver ninuma-agente/api_ninumapp.py), autenticados con este mismo secreto
+    # compartido. Igual que el resto de integraciones externas: sin configurar, esa
+    # sección se queda "sin datos" en vez de romper el resto de la app.
+    panel_agente_url: str = ""
+    ninumapp_api_secret: str = ""
+
     # Access Token (JWT, corto) + Refresh Token (opaco, largo) -- ver app/auth.py.
     # jwt_secret debe fijarse de verdad en producción (.env) -- el valor por defecto
     # solo vale para desarrollo local, nunca desplegar con este.

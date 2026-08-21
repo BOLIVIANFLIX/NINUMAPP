@@ -5,14 +5,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { KpiCard, KpiRow, SectionLabel } from '@/components/ui/panel';
+import { KpiCard, KpiRow, ListCard, ListRow, Pill, SectionLabel } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mensajeError, obtenerResumen } from '@/lib/api';
+import { mensajeError, obtenerDocumentosRecientes, obtenerResumen } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 const fechaHoy = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 
 const ACCESOS = [
   { destino: '/pedidos' as const, icono: '🛒', texto: 'Pedidos' },
@@ -29,8 +30,10 @@ export default function InicioScreen() {
     queryKey: ['resumen'],
     queryFn: obtenerResumen,
   });
+  const documentos = useQuery({ queryKey: ['documentos-recientes'], queryFn: obtenerDocumentosRecientes });
 
   const hoy = fechaHoy.format(new Date());
+  const f = resumen?.financiero;
 
   return (
     <ThemedView style={styles.container}>
@@ -60,12 +63,11 @@ export default function InicioScreen() {
             </ThemedText>
           )}
 
-          {resumen && (
+          {f && (
             <KpiRow>
-              <KpiCard label="Ingresos · mes" value={eur.format(resumen.ingresos_con_iva_mes)} wide />
-              <KpiCard label="Pedidos confirmados" value={String(resumen.pedidos_confirmados_mes)} />
-              <KpiCard label="Facturas por cobrar" value={String(resumen.facturas_pendientes_cobro)} />
-              <KpiCard label="Solicitudes sin revisar" value={String(resumen.solicitudes_pendientes)} />
+              <KpiCard label="Ingresos sin IVA · mes" value={eur.format(f.ingresos_sin_iva_cobrados_mes)} wide />
+              <KpiCard label="Facturas por cobrar" value={eur.format(f.facturas_pendientes_cobro.total_eur)} />
+              <KpiCard label="Solicitudes sin revisar" value={String(resumen?.solicitudes_pendientes ?? 0)} />
             </KpiRow>
           )}
 
@@ -73,6 +75,29 @@ export default function InicioScreen() {
             <ThemedText type="small" themeColor="textSecondary" style={styles.aviso}>
               ℹ️ {resumen.aviso}
             </ThemedText>
+          )}
+
+          {f && (f.acumulado_sin_facturar.mensual.albaranes > 0 || f.acumulado_sin_facturar.directa.listas_para_emitir > 0) && (
+            <ListCard>
+              {f.acumulado_sin_facturar.mensual.albaranes > 0 && (
+                <ListRow
+                  last={f.acumulado_sin_facturar.directa.listas_para_emitir === 0}
+                  left={<Pill color="info">Mensual</Pill>}
+                  title="Acumulado sin facturar (con IVA)"
+                  subtitle={`${f.acumulado_sin_facturar.mensual.clientes.join(', ')} · ${f.acumulado_sin_facturar.mensual.albaranes} albarán(es)`}
+                  right={<ThemedText type="smallBold">{eur.format(f.acumulado_sin_facturar.mensual.total_eur)}</ThemedText>}
+                />
+              )}
+              {f.acumulado_sin_facturar.directa.listas_para_emitir > 0 && (
+                <ListRow
+                  last
+                  left={<Pill color="warning">Directa</Pill>}
+                  title="Facturas directas pendientes"
+                  subtitle={`${f.acumulado_sin_facturar.directa.listas_para_emitir} lista(s) para emitir`}
+                  right={<ThemedText type="smallBold">{eur.format(f.acumulado_sin_facturar.directa.total_eur)}</ThemedText>}
+                />
+              )}
+            </ListCard>
           )}
 
           <SectionLabel>Accesos rápidos</SectionLabel>
@@ -88,6 +113,32 @@ export default function InicioScreen() {
               </Pressable>
             ))}
           </View>
+          {f && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.gastos}>
+              💸 Gastos del mes: {eur.format(f.gastos_mes)}
+            </ThemedText>
+          )}
+
+          {!!documentos.data?.documentos.length && (
+            <>
+              <SectionLabel>Documentos recientes</SectionLabel>
+              <ListCard>
+                {documentos.data.documentos.map((d, i) => (
+                  <ListRow
+                    key={d.numero}
+                    last={i === documentos.data!.documentos.length - 1}
+                    title={`Albarán ${d.numero}`}
+                    subtitle={d.cliente}
+                    right={
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {fechaCorta.format(new Date(d.creado_en))}
+                      </ThemedText>
+                    }
+                  />
+                ))}
+              </ListCard>
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -106,4 +157,5 @@ const styles = StyleSheet.create({
   quick: { flex: 1, borderRadius: 16, paddingVertical: Spacing.three, paddingHorizontal: Spacing.one, alignItems: 'center' },
   quickIco: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.two },
   quickTxt: { fontWeight: '600' },
+  gastos: { marginTop: Spacing.three },
 });

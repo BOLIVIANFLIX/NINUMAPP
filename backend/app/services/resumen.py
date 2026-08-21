@@ -1,25 +1,25 @@
-"""Resumen del mes para la pantalla Inicio -- misma conexión de solo lectura a
-Supabase que pedidos.py/avisos.py (rol ninumapp_lectura).
+"""Resumen del mes para la pantalla Inicio.
 
-"Ingresos" se muestra CON IVA a propósito: total_cents es lo que paga el cliente
-(precio final), y convertirlo a "sin IVA" exige saber qué tipo aplica a cada
-producto (puede no ser uniforme) -- no está verificado con Ariadna todavía, así que
-mostrar un número "sin IVA" adivinado sería peor que no mostrarlo. Se etiqueta "con
-IVA" en vez de fingir precisión que no hay."""
+Dos fuentes distintas, cada una con su propio "conectado":
+- Pedidos confirmados de la tienda web: Supabase de solo lectura (rol
+  ninumapp_lectura), igual que pedidos.py/avisos.py.
+- Ingresos, facturas pendientes, acumulado sin facturar y gastos: viven en la SQLite +
+  CSV de contabilidad de ninuma-agente (proyecto aparte, Raspberry) -- mismas cifras y
+  misma lógica que panel._seccion_inicio, leídas vía panel_agente.py. NINUMAPP nunca
+  calcula estos números por su cuenta ni escribe nada ahí."""
 
 from datetime import datetime, timezone
 from typing import TypedDict
 
 import asyncpg
 
-from app.services import supabase_db
+from app.services import panel_agente, supabase_db
 from app.services.avisos import solicitudes_pendientes
 
 _CONSULTA = """
 select
   coalesce(sum(o.total_cents), 0) as ingresos_cents,
-  count(*) as pedidos_confirmados,
-  count(*) filter (where o.payment_status is distinct from 'pagado') as pendientes_cobro
+  count(*) as pedidos_confirmados
 from orders o
 where o.created_at >= $1
   and (o.kind = 'b2b' or o.payment_status = 'pagado' or o.fecha_confirmada_por_operador)
@@ -27,14 +27,16 @@ where o.created_at >= $1
 
 
 class ResumenMes(TypedDict):
-    ingresos_con_iva_mes: float
     pedidos_confirmados_mes: int
-    facturas_pendientes_cobro: int
     solicitudes_pendientes: int
+    financiero: panel_agente.ResumenFinanciero | None
+    financiero_conectado: bool
 
 
 async def resumen_mes() -> tuple[ResumenMes | None, bool]:
-    """Devuelve (resumen, conectado)."""
+    """Devuelve (resumen, conectado) -- "conectado" aquí se refiere a Supabase (la
+    parte de pedidos de la tienda); la parte financiera trae su propio flag
+    `financiero_conectado` porque depende de una integración aparte."""
     if not supabase_db.configurada():
         return None, False
 
@@ -52,10 +54,11 @@ async def resumen_mes() -> tuple[ResumenMes | None, bool]:
         await conn.close()
 
     solicitudes, _ = await solicitudes_pendientes()
+    financiero, financiero_conectado = await panel_agente.resumen_financiero()
 
     return ResumenMes(
-        ingresos_con_iva_mes=fila["ingresos_cents"] / 100,
         pedidos_confirmados_mes=fila["pedidos_confirmados"],
-        facturas_pendientes_cobro=fila["pendientes_cobro"],
         solicitudes_pendientes=len(solicitudes),
+        financiero=financiero,
+        financiero_conectado=financiero_conectado,
     ), True

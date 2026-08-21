@@ -94,12 +94,22 @@ export async function logout(refreshToken: string): Promise<void> {
   await api.post('/api/auth/logout', { refresh_token: refreshToken }).catch(() => {});
 }
 
+export interface ResumenFinanciero {
+  ingresos_sin_iva_cobrados_mes: number;
+  facturas_pendientes_cobro: { total_eur: number; documentos: number };
+  acumulado_sin_facturar: {
+    mensual: { total_eur: number; albaranes: number; clientes: string[] };
+    directa: { total_eur: number; listas_para_emitir: number };
+  };
+  gastos_mes: number;
+}
+
 export interface Resumen {
   usuario: string;
-  ingresos_con_iva_mes: number;
   pedidos_confirmados_mes: number;
-  facturas_pendientes_cobro: number;
   solicitudes_pendientes: number;
+  financiero: ResumenFinanciero | null;
+  financiero_conectado: boolean;
   aviso: string | null;
 }
 
@@ -150,6 +160,35 @@ export async function obtenerAlarmas(): Promise<RespuestaAlarmas> {
   return resp.data;
 }
 
+export interface SensorHA {
+  entity_id: string;
+  etiqueta: string;
+  valor: string | null;
+  unidad: string | null;
+}
+
+export interface CamaraHA {
+  entity_id: string;
+  etiqueta: string;
+}
+
+export interface RespuestaSensores {
+  sensores: SensorHA[];
+  alarma_activa: string | null;
+  camaras: CamaraHA[];
+  conectado: boolean;
+  aviso: string | null;
+}
+
+export async function obtenerSensores(): Promise<RespuestaSensores> {
+  const resp = await api.get('/api/obrador/sensores');
+  return resp.data;
+}
+
+export function urlSnapshotCamara(entityId: string): string {
+  return `${API_URL}/api/obrador/camaras/${entityId}/snapshot`;
+}
+
 export interface Receta {
   id: number;
   nombre: string;
@@ -174,6 +213,7 @@ export interface SolicitudPendiente {
 
 export interface RespuestaAvisos extends RespuestaConAviso<SolicitudPendiente> {
   solicitudes: SolicitudPendiente[];
+  alarma_activa: string | null;
 }
 
 export async function obtenerAvisos(): Promise<RespuestaAvisos> {
@@ -309,6 +349,37 @@ export interface RespuestaCorreos extends RespuestaConAviso<CorreoPendiente> {
 
 export async function obtenerCorreosPendientes(): Promise<RespuestaCorreos> {
   const resp = await api.get('/api/gmail/correos-pendientes');
+  return resp.data;
+}
+
+export interface ClienteProfesional {
+  nombre: string;
+  tipo_facturacion: 'directa' | 'mensual';
+  albaranes_abiertos: number;
+}
+
+export interface RespuestaClientesProfesionales extends RespuestaConAviso<ClienteProfesional> {
+  clientes: ClienteProfesional[];
+}
+
+export async function obtenerClientesProfesionales(): Promise<RespuestaClientesProfesionales> {
+  const resp = await api.get('/api/pedidos-b2b/clientes');
+  return resp.data;
+}
+
+export interface DocumentoReciente {
+  numero: string;
+  cliente: string;
+  estado: string;
+  creado_en: string;
+}
+
+export interface RespuestaDocumentosRecientes extends RespuestaConAviso<DocumentoReciente> {
+  documentos: DocumentoReciente[];
+}
+
+export async function obtenerDocumentosRecientes(): Promise<RespuestaDocumentosRecientes> {
+  const resp = await api.get('/api/pedidos-b2b/documentos-recientes');
   return resp.data;
 }
 

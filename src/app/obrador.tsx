@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +11,8 @@ import { ThemedView } from '@/components/themed-view';
 import { Dot, ListCard, ListRow, SectionLabel, Segmented } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mensajeError, obtenerAlarmas, obtenerRecetas } from '@/lib/api';
+import { mensajeError, obtenerAlarmas, obtenerRecetas, obtenerSensores, urlSnapshotCamara, type SensorHA } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';
 
 const fechaHora = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -24,6 +26,7 @@ export default function ObradorScreen() {
 
   const alarmas = useQuery({ queryKey: ['obrador', 'alarmas'], queryFn: obtenerAlarmas });
   const recetas = useQuery({ queryKey: ['obrador', 'recetas'], queryFn: obtenerRecetas });
+  const sensores = useQuery({ queryKey: ['obrador', 'sensores'], queryFn: obtenerSensores, refetchInterval: 30_000 });
 
   if (vista === 'ticket') return <InventarioTicket onVolver={() => setVista('obrador')} />;
   if (vista === 'albaran') return <InventarioAlbaran onVolver={() => setVista('obrador')} />;
@@ -40,6 +43,50 @@ export default function ObradorScreen() {
 
           {sub === 'Recetas' ? (
             <>
+              {sensores.data?.alarma_activa && (
+                <View style={[styles.bannerAlarma, { backgroundColor: theme.dangerSoft }]}>
+                  <ThemedText type="small" style={{ color: theme.danger, fontWeight: '700' }}>
+                    ⚠️ {sensores.data.alarma_activa}
+                  </ThemedText>
+                </View>
+              )}
+
+              <SectionLabel>Sensores</SectionLabel>
+              {sensores.isLoading && <ActivityIndicator color={theme.accent} />}
+              {sensores.data?.aviso && (
+                <ThemedText type="small" themeColor="textSecondary">
+                  ℹ️ {sensores.data.aviso}
+                </ThemedText>
+              )}
+              {!!sensores.data?.sensores.length && (
+                <View style={styles.sensorGrid}>
+                  {sensores.data.sensores.map((s) => (
+                    <SensorCard key={s.entity_id} sensor={s} />
+                  ))}
+                </View>
+              )}
+
+              {!!sensores.data?.camaras.length && (
+                <>
+                  <SectionLabel>Cámaras (foto actual)</SectionLabel>
+                  <View style={styles.camaraGrid}>
+                    {sensores.data.camaras.map((c) => (
+                      <View key={c.entity_id} style={styles.camaraBox}>
+                        <Image
+                          source={{ uri: urlSnapshotCamara(c.entity_id), headers: { Authorization: `Bearer ${tokenStore.getAccessToken() ?? ''}` } }}
+                          style={[styles.camaraImg, { backgroundColor: theme.backgroundSelected }]}
+                          contentFit="cover"
+                          transition={150}
+                        />
+                        <ThemedText type="small" themeColor="textSecondary" style={styles.camaraEtiqueta}>
+                          {c.etiqueta}
+                        </ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
               <SectionLabel>Alarmas de neveras</SectionLabel>
               {alarmas.isLoading && <ActivityIndicator color={theme.accent} />}
               {alarmas.error && (
@@ -125,6 +172,20 @@ export default function ObradorScreen() {
   );
 }
 
+function SensorCard({ sensor }: { sensor: SensorHA }) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.sensorCard, { backgroundColor: theme.backgroundElement }]}>
+      <ThemedText type="subtitle" style={styles.sensorValor}>
+        {sensor.valor !== null ? `${sensor.valor}${sensor.unidad ?? ''}` : 'sin datos'}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {sensor.etiqueta}
+      </ThemedText>
+    </View>
+  );
+}
+
 function AccionIcono({ icono }: { icono: string }) {
   const theme = useTheme();
   return (
@@ -141,4 +202,12 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 26, lineHeight: 31, marginBottom: Spacing.three },
   notaCoste: { marginTop: Spacing.two, lineHeight: 18 },
   accionIcono: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  bannerAlarma: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three },
+  sensorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  sensorCard: { flexGrow: 1, flexBasis: '47%', borderRadius: 16, padding: Spacing.three, gap: 2 },
+  sensorValor: { fontSize: 22, lineHeight: 26 },
+  camaraGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  camaraBox: { flexGrow: 1, flexBasis: '47%', gap: 4 },
+  camaraImg: { width: '100%', aspectRatio: 4 / 3, borderRadius: 14 },
+  camaraEtiqueta: { textAlign: 'center' },
 });

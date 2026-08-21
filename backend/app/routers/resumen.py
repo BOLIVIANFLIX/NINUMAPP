@@ -13,14 +13,14 @@ async def resumen(usuario: Usuario = Depends(usuario_actual)):
     if not conectado or datos is None:
         return {
             "usuario": usuario.usuario,
-            "ingresos_con_iva_mes": 0.0,
             "pedidos_confirmados_mes": 0,
-            "facturas_pendientes_cobro": 0,
             "solicitudes_pendientes": 0,
+            "financiero": None,
+            "financiero_conectado": False,
             "aviso": "Supabase todavía no está conectado en NINUMAPP.",
         }
     return {
         "usuario": usuario.usuario,
         **datos,
-        "aviso": None,
+        "aviso": None if datos["financiero_conectado"] else "El resumen financiero todavía no está conectado en NINUMAPP.",
     }

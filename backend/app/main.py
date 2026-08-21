@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import auth, avisos, clientes, gmail, inventario, obrador, pedidos, pedidos_propios, resumen
+from app.routers import auth, avisos, clientes, gmail, inventario, obrador, pedidos, pedidos_b2b, pedidos_propios, resumen
 
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(resumen.router)
 app.include_router(pedidos.router)
+app.include_router(pedidos_b2b.router)
 app.include_router(obrador.router)
 app.include_router(avisos.router)
 app.include_router(inventario.router)

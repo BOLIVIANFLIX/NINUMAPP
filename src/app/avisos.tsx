@@ -14,7 +14,7 @@ const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short',
 export default function AvisosScreen() {
   const theme = useTheme();
 
-  const solicitudes = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos });
+  const solicitudes = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const correos = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes });
 
   return (
@@ -24,6 +24,14 @@ export default function AvisosScreen() {
           <ThemedText type="title" style={styles.titulo}>
             Avisos
           </ThemedText>
+
+          {solicitudes.data?.alarma_activa && (
+            <View style={[styles.bannerAlarma, { backgroundColor: theme.dangerSoft }]}>
+              <ThemedText type="small" style={{ color: theme.danger, fontWeight: '700' }}>
+                ⚠️ {solicitudes.data.alarma_activa}
+              </ThemedText>
+            </View>
+          )}
 
           <SectionLabel>Solicitudes sin revisar</SectionLabel>
           {solicitudes.isLoading && <ActivityIndicator color={theme.accent} />}
@@ -111,4 +119,5 @@ const styles = StyleSheet.create({
   scroll: { padding: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
   titulo: { fontSize: 26, lineHeight: 31, marginBottom: Spacing.three },
   notifIco: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  bannerAlarma: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three },
 });
