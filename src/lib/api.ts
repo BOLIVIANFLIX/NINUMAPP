@@ -367,6 +367,183 @@ export async function obtenerClientesProfesionales(): Promise<RespuestaClientesP
   return resp.data;
 }
 
+// --- Generar albarán --------------------------------------------------------
+// Asistente en pasos, "sesion" identifica el alta en curso (la crea el backend al
+// iniciar). Nada de esto escribe de verdad hasta /finalizar (numeración/stock/
+// contabilidad reales) -- todo lo anterior es un borrador que se puede abandonar sin
+// dejar rastro.
+
+export async function obtenerClientesParaAlbaran(): Promise<{ nombre: string }[]> {
+  const resp = await api.get('/api/pedidos-b2b/albaran/clientes');
+  return resp.data.clientes;
+}
+
+export async function iniciarAlbaran(cliente: string): Promise<string> {
+  const resp = await api.post('/api/pedidos-b2b/albaran/iniciar', { cliente });
+  return resp.data.sesion;
+}
+
+export interface LineaAlbaran {
+  descripcion: string;
+  unidades: number;
+  referencia: string | null;
+  precio_unitario: number;
+}
+
+export interface CatalogoItem {
+  codigo: string | null;
+  descripcion: string;
+}
+
+export interface EstadoAlbaran {
+  cliente: string;
+  lineas: LineaAlbaran[];
+  catalogo: CatalogoItem[];
+  precio_libre: boolean;
+  referencia_pedido: string | null;
+  es_grand_folies: boolean;
+}
+
+export async function obtenerEstadoAlbaran(sesion: string): Promise<EstadoAlbaran> {
+  const resp = await api.get('/api/pedidos-b2b/albaran/estado', { params: { sesion } });
+  return resp.data;
+}
+
+export async function anadirLineaAlbaran(
+  sesion: string,
+  descripcion: string,
+  unidades: number,
+  codigo?: string | null,
+  precioUnitario?: number | null,
+): Promise<{ ok: boolean; falta_precio?: boolean; error?: string }> {
+  const resp = await api.post('/api/pedidos-b2b/albaran/linea', {
+    sesion,
+    descripcion,
+    unidades,
+    codigo: codigo ?? null,
+    precio_unitario: precioUnitario ?? null,
+  });
+  return resp.data;
+}
+
+export async function quitarLineaAlbaran(sesion: string, indice: number): Promise<void> {
+  await api.post('/api/pedidos-b2b/albaran/linea/quitar', { sesion, indice });
+}
+
+export async function ponerReferenciaAlbaran(sesion: string, referencia: string): Promise<void> {
+  await api.post('/api/pedidos-b2b/albaran/referencia', { sesion, referencia });
+}
+
+export interface FaltanteMateriaPrima {
+  producto: string;
+  necesario: number;
+  disponible: number;
+  falta: number;
+}
+
+export interface PrevisualizacionAlbaran {
+  cliente: string;
+  lineas: (LineaAlbaran & { receta: string | null; importe: number })[];
+  subtotal: number;
+  iva: number;
+  total: number;
+  siguiente_numero_automatico: string;
+  faltantes: FaltanteMateriaPrima[];
+}
+
+export async function previsualizarAlbaran(sesion: string): Promise<PrevisualizacionAlbaran> {
+  const resp = await api.get('/api/pedidos-b2b/albaran/previsualizar', { params: { sesion } });
+  return resp.data;
+}
+
+export interface ResultadoAlbaran {
+  generar_documento: boolean;
+  resumen: string;
+  numero_mostrado: string;
+  numero_seguimiento: string;
+  ruta_docx: string | null;
+  ruta_pdf: string | null;
+  pdf_fallo: boolean;
+  nombre_base: string | null;
+}
+
+export async function finalizarAlbaran(sesion: string, numeroManual: string | null, registrar: boolean): Promise<ResultadoAlbaran> {
+  const resp = await api.post('/api/pedidos-b2b/albaran/finalizar', { sesion, numero_manual: numeroManual, registrar });
+  return resp.data;
+}
+
+export function urlDescargarAlbaran(sesion: string, tipo: 'docx' | 'pdf'): string {
+  return `${API_URL}/api/pedidos-b2b/albaran/descargar?sesion=${encodeURIComponent(sesion)}&tipo=${tipo}`;
+}
+
+// --- Cerrar mes / marcar facturado / marcar cobrado -------------------------
+
+export async function cerrarMes(cliente: string): Promise<{ ok: boolean; marcados: number }> {
+  const resp = await api.post('/api/pedidos-b2b/cerrar-mes', { cliente });
+  return resp.data;
+}
+
+export async function marcarFacturado(numero: string): Promise<void> {
+  await api.post('/api/pedidos-b2b/marcar-facturado', { numero });
+}
+
+export async function cerrarCobroMensual(cliente: string): Promise<{ ok: boolean; marcados: number }> {
+  const resp = await api.post('/api/pedidos-b2b/cerrar-cobro-mensual', { cliente });
+  return resp.data;
+}
+
+export async function marcarCobrado(numero: string): Promise<void> {
+  await api.post('/api/pedidos-b2b/marcar-cobrado', { numero });
+}
+
+// --- Grand Folies ------------------------------------------------------------
+
+export interface LineaGrandFolies {
+  referencia: string | null;
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number | null;
+}
+
+export interface PedidoGrandFolies {
+  id: string;
+  numero_pedido: string | null;
+  fecha_entrega: string | null;
+  lineas: LineaGrandFolies[];
+  faltantes: FaltanteMateriaPrima[] | null;
+  creado_en: string;
+}
+
+export interface RespuestaGrandFolies extends RespuestaConAviso<PedidoGrandFolies> {
+  pedidos: PedidoGrandFolies[];
+}
+
+export async function obtenerGrandFoliesPendientes(): Promise<RespuestaGrandFolies> {
+  const resp = await api.get('/api/pedidos-b2b/grand-folies/pendientes');
+  return resp.data;
+}
+
+export async function confirmarGrandFolies(
+  id: string,
+  fechaEntrega: string | null,
+  numeroPedido: string | null,
+  numeroManual: string | null,
+  lineasFinales: LineaGrandFolies[],
+): Promise<ResultadoAlbaran> {
+  const resp = await api.post('/api/pedidos-b2b/grand-folies/confirmar', {
+    id,
+    fecha_entrega: fechaEntrega,
+    numero_pedido: numeroPedido,
+    numero_manual: numeroManual,
+    lineas_finales: lineasFinales,
+  });
+  return resp.data;
+}
+
+export async function descartarGrandFolies(id: string): Promise<void> {
+  await api.post('/api/pedidos-b2b/grand-folies/descartar', { id });
+}
+
 export interface DocumentoReciente {
   numero: string;
   cliente: string;

@@ -1,16 +1,19 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AlbaranWizard } from '@/components/albaran-wizard';
 import { Clientes } from '@/components/clientes';
 import { PedidoPropioFormulario } from '@/components/pedido-propio-form';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { BotonPrimario } from '@/components/boton-primario';
 import { ListCard, ListRow, Pill, SectionLabel, Segmented, type PillColor } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
+  cerrarMes,
   mensajeError,
   obtenerClientesProfesionales,
   obtenerPedidos,
@@ -34,25 +37,61 @@ const ETIQUETAS_ESTADO_PROPIO: Record<string, { texto: string; color: PillColor 
   cobrado: { texto: 'Cobrado', color: 'success' },
 };
 
-type Vista = { tipo: 'principal' } | { tipo: 'clientes' } | { tipo: 'form-pedido'; pedido: PedidoPropio | null };
+type Vista = { tipo: 'principal' } | { tipo: 'clientes' } | { tipo: 'form-pedido'; pedido: PedidoPropio | null } | { tipo: 'nuevo-albaran' };
 type Sub = 'Profesionales' | 'Particulares';
 
 export default function PedidosScreen() {
   const theme = useTheme();
+  const queryClient = useQueryClient();
   const [vista, setVista] = useState<Vista>({ tipo: 'principal' });
   const [sub, setSub] = useState<Sub>('Profesionales');
+  const [cerrandoMes, setCerrandoMes] = useState(false);
 
   const profesionalesQuery = useQuery({ queryKey: ['clientes-profesionales'], queryFn: obtenerClientesProfesionales });
   const resumenQuery = useQuery({ queryKey: ['resumen'], queryFn: obtenerResumen });
   const webQuery = useQuery({ queryKey: ['pedidos'], queryFn: obtenerPedidos });
   const propiosQuery = useQuery({ queryKey: ['pedidos-propios'], queryFn: obtenerPedidosPropios });
 
+  function volverYRefrescar() {
+    setVista({ tipo: 'principal' });
+    queryClient.invalidateQueries({ queryKey: ['resumen'] });
+    queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
+  }
+
   if (vista.tipo === 'clientes') return <Clientes onVolver={() => setVista({ tipo: 'principal' })} />;
   if (vista.tipo === 'form-pedido') {
     return <PedidoPropioFormulario pedido={vista.pedido} onVolver={() => setVista({ tipo: 'principal' })} />;
   }
+  if (vista.tipo === 'nuevo-albaran') return <AlbaranWizard onVolver={volverYRefrescar} />;
 
   const acumuladoMensual = resumenQuery.data?.financiero?.acumulado_sin_facturar.mensual;
+
+  function pedirCerrarMes() {
+    const cliente = acumuladoMensual?.clientes[0];
+    if (!cliente) return;
+    Alert.alert(
+      'Cerrar mes y facturar',
+      `Se marcarán como facturados los ${acumuladoMensual.albaranes} albarán(es) acumulados de ${cliente}. No se puede deshacer desde la app. ¿Continuar?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar mes',
+          style: 'destructive',
+          onPress: async () => {
+            setCerrandoMes(true);
+            try {
+              await cerrarMes(cliente);
+              await queryClient.invalidateQueries({ queryKey: ['resumen'] });
+            } catch (err) {
+              Alert.alert('Error', mensajeError(err));
+            } finally {
+              setCerrandoMes(false);
+            }
+          },
+        },
+      ],
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -73,6 +112,10 @@ export default function PedidosScreen() {
 
           {sub === 'Profesionales' ? (
             <>
+              <View style={styles.botonAlbaran}>
+                <BotonPrimario texto="＋ Generar albarán" onPress={() => setVista({ tipo: 'nuevo-albaran' })} />
+              </View>
+
               <SectionLabel>Clientes profesionales</SectionLabel>
               {profesionalesQuery.isLoading && <ActivityIndicator color={theme.accent} />}
               {profesionalesQuery.error && (
@@ -110,11 +153,11 @@ export default function PedidosScreen() {
                       right={<ThemedText type="smallBold">{eur.format(acumuladoMensual.total_eur)}</ThemedText>}
                     />
                   </ListCard>
+                  <View style={styles.botonCerrarMes}>
+                    {cerrandoMes ? <ActivityIndicator color={theme.accent} /> : <BotonPrimario texto="Cerrar mes y facturar" onPress={pedirCerrarMes} />}
+                  </View>
                 </>
               )}
-              <ThemedText type="small" themeColor="textSecondary" style={styles.nota}>
-                ℹ️ Solo consulta -- generar albarán y cerrar mes/facturar se siguen haciendo desde el panel.
-              </ThemedText>
             </>
           ) : (
             <>
@@ -234,4 +277,6 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 26, lineHeight: 31 },
   nota: { marginTop: Spacing.two, marginBottom: Spacing.two, lineHeight: 18 },
   right: { alignItems: 'flex-end' },
+  botonAlbaran: { marginTop: Spacing.three, marginBottom: Spacing.two },
+  botonCerrarMes: { marginTop: Spacing.two },
 });

@@ -1,21 +1,39 @@
-import { useQuery } from '@tanstack/react-query';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mensajeError, obtenerAvisos, obtenerCorreosPendientes } from '@/lib/api';
+import { mensajeError, obtenerAvisos, obtenerCorreosPendientes, obtenerGrandFoliesPendientes, type PedidoGrandFolies } from '@/lib/api';
 
 const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 export default function AvisosScreen() {
   const theme = useTheme();
+  const queryClient = useQueryClient();
+  const [pedidoGF, setPedidoGF] = useState<PedidoGrandFolies | null>(null);
 
   const solicitudes = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const correos = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes });
+  const grandFolies = useQuery({ queryKey: ['avisos', 'grand-folies'], queryFn: obtenerGrandFoliesPendientes });
+
+  if (pedidoGF) {
+    return (
+      <GrandFoliesConfirmar
+        pedido={pedidoGF}
+        onVolver={() => setPedidoGF(null)}
+        onResuelto={() => {
+          setPedidoGF(null);
+          queryClient.invalidateQueries({ queryKey: ['avisos', 'grand-folies'] });
+        }}
+      />
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -31,6 +49,24 @@ export default function AvisosScreen() {
                 ⚠️ {solicitudes.data.alarma_activa}
               </ThemedText>
             </View>
+          )}
+
+          {!!grandFolies.data?.pedidos.length && (
+            <>
+              <SectionLabel>Pedidos de Grand Folies detectados</SectionLabel>
+              <ListCard>
+                {grandFolies.data.pedidos.map((p, i) => (
+                  <ListRow
+                    key={p.id}
+                    last={i === grandFolies.data!.pedidos.length - 1}
+                    onPress={() => setPedidoGF(p)}
+                    left={<NotifIcono icono="📄" color={theme.accent} bg={theme.accentSoft} />}
+                    title={`Pedido Grand Folies${p.numero_pedido ? ` · ${p.numero_pedido}` : ''}`}
+                    subtitle={`${p.lineas.length} línea(s) · entrega ${p.fecha_entrega ?? 'sin fecha'}${p.faltantes?.length ? ' · ⚠️ falta materia prima' : ''}`}
+                  />
+                ))}
+              </ListCard>
+            </>
           )}
 
           <SectionLabel>Solicitudes sin revisar</SectionLabel>

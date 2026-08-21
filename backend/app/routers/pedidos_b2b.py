@@ -1,15 +1,34 @@
-"""Vista de solo lectura de los pedidos B2B/profesionales -- datos reales de
-ninuma-agente (ver services/panel_agente.py). Deliberadamente sin las acciones de
-escritura del panel (generar albarán, cerrar mes y facturar): esta es una réplica de
-consulta, no un segundo sitio desde el que facturar de verdad."""
+"""Pedidos B2B/profesionales -- datos reales de ninuma-agente (ver
+services/panel_agente.py). Incluye generar albarán real, cerrar mes/facturar, y
+confirmar pedidos de Grand Folies: todo se ejecuta de verdad en ninuma-agente (mismo
+código que usa el panel), NINUMAPP solo hace de interfaz."""
 
-from fastapi import APIRouter, Depends
+import functools
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
 from app.services import panel_agente
+from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/pedidos-b2b", tags=["pedidos-b2b"])
+
+
+def _manejar_error(f):
+    # functools.wraps deja __wrapped__ apuntando a f -- FastAPI usa inspect.signature
+    # para leer los parámetros y Depends() de la ruta, y eso sigue esa cadena, así que
+    # necesita esto para no perder la firma real al envolver la función.
+    @functools.wraps(f)
+    async def envoltura(*args, **kwargs):
+        try:
+            return await f(*args, **kwargs)
+        except PanelAgenteError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+    return envoltura
 
 
 @router.get("/clientes")
@@ -30,3 +49,184 @@ async def documentos_recientes(usuario: Usuario = Depends(usuario_actual)):
         "conectado": conectado,
         "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
     }
+
+
+# ---------------------------------------------------------------------------
+# Generar albarán
+# ---------------------------------------------------------------------------
+
+
+@router.get("/albaran/clientes")
+@_manejar_error
+async def clientes_para_albaran(usuario: Usuario = Depends(usuario_actual)):
+    return {"clientes": await panel_agente.clientes_para_albaran()}
+
+
+class IniciarAlbaranBody(BaseModel):
+    cliente: str
+
+
+@router.post("/albaran/iniciar")
+@_manejar_error
+async def iniciar_albaran(body: IniciarAlbaranBody, usuario: Usuario = Depends(usuario_actual)):
+    sesion = str(uuid.uuid4())
+    await panel_agente.iniciar_albaran(sesion, body.cliente)
+    return {"sesion": sesion}
+
+
+@router.get("/albaran/estado")
+@_manejar_error
+async def estado_albaran(sesion: str, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.estado_albaran(sesion)
+
+
+class LineaAlbaranBody(BaseModel):
+    sesion: str
+    descripcion: str
+    unidades: float
+    codigo: str | None = None
+    precio_unitario: float | None = None
+
+
+@router.post("/albaran/linea")
+@_manejar_error
+async def anadir_linea(body: LineaAlbaranBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.anadir_linea_albaran(body.sesion, body.descripcion, body.unidades, body.codigo, body.precio_unitario)
+
+
+class QuitarLineaBody(BaseModel):
+    sesion: str
+    indice: int
+
+
+@router.post("/albaran/linea/quitar")
+@_manejar_error
+async def quitar_linea(body: QuitarLineaBody, usuario: Usuario = Depends(usuario_actual)):
+    await panel_agente.quitar_linea_albaran(body.sesion, body.indice)
+    return {"ok": True}
+
+
+class ReferenciaBody(BaseModel):
+    sesion: str
+    referencia: str
+
+
+@router.post("/albaran/referencia")
+@_manejar_error
+async def poner_referencia(body: ReferenciaBody, usuario: Usuario = Depends(usuario_actual)):
+    await panel_agente.poner_referencia_albaran(body.sesion, body.referencia)
+    return {"ok": True}
+
+
+@router.get("/albaran/previsualizar")
+@_manejar_error
+async def previsualizar_albaran(sesion: str, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.previsualizar_albaran(sesion)
+
+
+class FinalizarAlbaranBody(BaseModel):
+    sesion: str
+    numero_manual: str | None = None
+    registrar: bool = True
+
+
+@router.post("/albaran/finalizar")
+@_manejar_error
+async def finalizar_albaran(body: FinalizarAlbaranBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.finalizar_albaran(body.sesion, body.numero_manual, body.registrar)
+
+
+@router.get("/albaran/descargar")
+@_manejar_error
+async def descargar_albaran(sesion: str, tipo: str, usuario: Usuario = Depends(usuario_actual)):
+    resultado = await panel_agente.descargar_albaran(sesion, tipo)
+    if resultado is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado.")
+    contenido, content_type = resultado
+    return Response(content=contenido, media_type=content_type)
+
+
+# ---------------------------------------------------------------------------
+# Cerrar mes / marcar facturado / marcar cobrado
+# ---------------------------------------------------------------------------
+
+
+class ClienteBody(BaseModel):
+    cliente: str
+
+
+@router.post("/cerrar-mes")
+@_manejar_error
+async def cerrar_mes(body: ClienteBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.cerrar_mes(body.cliente)
+
+
+class NumeroBody(BaseModel):
+    numero: str
+
+
+@router.post("/marcar-facturado")
+@_manejar_error
+async def marcar_facturado(body: NumeroBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.marcar_facturado(body.numero)
+
+
+@router.post("/cerrar-cobro-mensual")
+@_manejar_error
+async def cerrar_cobro_mensual(body: ClienteBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.cerrar_cobro_mensual(body.cliente)
+
+
+@router.post("/marcar-cobrado")
+@_manejar_error
+async def marcar_cobrado(body: NumeroBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.marcar_cobrado(body.numero)
+
+
+# ---------------------------------------------------------------------------
+# Grand Folies
+# ---------------------------------------------------------------------------
+
+
+@router.get("/grand-folies/pendientes")
+async def grand_folies_pendientes(usuario: Usuario = Depends(usuario_actual)):
+    lista, conectado = await panel_agente.grand_folies_pendientes()
+    return {
+        "pedidos": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
+    }
+
+
+class LineaGF(BaseModel):
+    referencia: str | None = None
+    descripcion: str
+    cantidad: float
+    precio_unitario: float | None = None
+
+
+class ConfirmarGFBody(BaseModel):
+    id: str
+    fecha_entrega: str | None = None
+    numero_pedido: str | None = None
+    numero_manual: str | None = None
+    lineas_finales: list[LineaGF]
+
+
+@router.post("/grand-folies/confirmar")
+@_manejar_error
+async def grand_folies_confirmar(body: ConfirmarGFBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.grand_folies_confirmar(
+        body.id, body.fecha_entrega, body.numero_pedido, body.numero_manual, [l.model_dump() for l in body.lineas_finales]
+    )
+
+
+class DescartarGFBody(BaseModel):
+    id: str
+
+
+@router.post("/grand-folies/descartar")
+@_manejar_error
+async def grand_folies_descartar(body: DescartarGFBody, usuario: Usuario = Depends(usuario_actual)):
+    await panel_agente.grand_folies_descartar(body.id)
+    return {"ok": True}
