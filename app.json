@@ -7,7 +7,11 @@
     "icon": "./assets/images/icon.png",
     "scheme": "app",
     "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "es.ninuma.ninumapp"
+    },
     "android": {
+      "package": "es.ninuma.ninumapp",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
