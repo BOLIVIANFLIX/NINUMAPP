@@ -28,11 +28,21 @@ class AcumuladoDirecta(TypedDict):
     listas_para_emitir: int
 
 
+class ProximaEntrega(TypedDict):
+    cliente: str
+    fecha: str
+    descripcion: str | None
+    mas_ese_dia: int
+
+
 class ResumenFinanciero(TypedDict):
     ingresos_sin_iva_cobrados_mes: float
     facturas_pendientes_cobro: FacturasPendientes
     acumulado_sin_facturar: dict  # {"mensual": AcumuladoMensual, "directa": AcumuladoDirecta}
     gastos_mes: float
+    contactos_sin_resolver: int
+    proxima_entrega: ProximaEntrega | None
+    hay_aviso_analisis: bool
 
 
 class ClienteProfesional(TypedDict):
@@ -111,6 +121,11 @@ async def acumulado_mensual_itemizado() -> tuple[list[dict], bool]:
 async def clientes_profesionales() -> tuple[list[ClienteProfesional], bool]:
     datos = await _get("/api/ninumapp/clientes-profesionales")
     return (datos, True) if datos is not None else ([], False)
+
+
+async def facturas_pendientes_cobro_detalle() -> tuple[dict, bool]:
+    datos = await _get("/api/ninumapp/facturas-pendientes-cobro")
+    return (datos, True) if datos is not None else ({"mensuales": [], "directas": []}, False)
 
 
 async def documentos_recientes() -> tuple[list[DocumentoReciente], bool]:

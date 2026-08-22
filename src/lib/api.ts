@@ -94,6 +94,13 @@ export async function logout(refreshToken: string): Promise<void> {
   await api.post('/api/auth/logout', { refresh_token: refreshToken }).catch(() => {});
 }
 
+export interface ProximaEntrega {
+  cliente: string;
+  fecha: string;
+  descripcion: string | null;
+  mas_ese_dia: number;
+}
+
 export interface ResumenFinanciero {
   ingresos_sin_iva_cobrados_mes: number;
   facturas_pendientes_cobro: { total_eur: number; documentos: number };
@@ -102,12 +109,14 @@ export interface ResumenFinanciero {
     directa: { total_eur: number; listas_para_emitir: number };
   };
   gastos_mes: number;
+  contactos_sin_resolver: number;
+  proxima_entrega: ProximaEntrega | null;
+  hay_aviso_analisis: boolean;
 }
 
 export interface Resumen {
   usuario: string;
   pedidos_confirmados_mes: number;
-  solicitudes_pendientes: number;
   financiero: ResumenFinanciero | null;
   financiero_conectado: boolean;
   aviso: string | null;
@@ -419,6 +428,36 @@ export interface RespuestaAcumuladoMensual {
 
 export async function obtenerAcumuladoMensualItemizado(): Promise<RespuestaAcumuladoMensual> {
   const resp = await api.get('/api/pedidos-b2b/acumulado-mensual-itemizado');
+  return resp.data;
+}
+
+export interface AlbaranFacturaCobro {
+  numero: string;
+  creado_en: string;
+  total: number;
+}
+
+export interface GrupoFacturaCobroMensual {
+  cliente: string;
+  albaranes: AlbaranFacturaCobro[];
+  total: number;
+}
+
+export interface FacturaCobroDirecta {
+  numero: string;
+  cliente: string;
+  creado_en: string;
+}
+
+export interface RespuestaFacturasPendientesCobro {
+  mensuales: GrupoFacturaCobroMensual[];
+  directas: FacturaCobroDirecta[];
+  conectado: boolean;
+  aviso: string | null;
+}
+
+export async function obtenerFacturasPendientesCobro(): Promise<RespuestaFacturasPendientesCobro> {
+  const resp = await api.get('/api/pedidos-b2b/facturas-pendientes-cobro');
   return resp.data;
 }
 
@@ -1003,6 +1042,8 @@ export interface PedidoWebPendiente {
 export interface RespuestaAvisosPendientes {
   encargos: EncargoPendiente[];
   pedidos_web: PedidoWebPendiente[];
+  intentos_fallidos_login: number;
+  preguntas_margen_pendientes: number;
   conectado: boolean;
   aviso: string | null;
 }

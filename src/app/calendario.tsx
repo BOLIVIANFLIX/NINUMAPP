@@ -19,6 +19,11 @@ const MESES = [
 ];
 const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+// Máximo de etiquetas de evento visibles dentro de una casilla del día antes de
+// resumir el resto en "+N" -- estilo Google Calendar (ver captura de referencia de
+// Ariadna), en vez de un simple punto + lista al tocar.
+const MAX_ETIQUETAS_POR_DIA = 3;
+
 function inicioMes(fecha: Date): Date {
   return new Date(fecha.getFullYear(), fecha.getMonth(), 1);
 }
@@ -125,17 +130,41 @@ export default function CalendarioScreen() {
               const delMes = dia.getMonth() === mesRef.getMonth();
               const esHoy = mismoDia(dia, hoy);
               const esSeleccionado = diaSeleccionado && mismoDia(dia, diaSeleccionado);
-              const nEventos = eventosPorDia.get(isoFecha(dia))?.length ?? 0;
+              const eventosDia = eventosPorDia.get(isoFecha(dia)) ?? [];
+              const visibles = eventosDia.slice(0, MAX_ETIQUETAS_POR_DIA);
+              const restantes = eventosDia.length - visibles.length;
               return (
-                <Pressable key={dia.toISOString()} onPress={() => setDiaSeleccionado(dia)} style={styles.celdaDia}>
-                  <View style={[styles.circuloDia, esSeleccionado && { backgroundColor: theme.accent }, !esSeleccionado && esHoy && { backgroundColor: theme.accentSoft }]}>
-                    <ThemedText
-                      type="small"
-                      style={[!delMes && { color: theme.textSecondary, opacity: 0.4 }, esSeleccionado && { color: '#fff' }, esHoy && !esSeleccionado && { color: theme.accent, fontWeight: '700' }]}>
-                      {dia.getDate()}
-                    </ThemedText>
+                <Pressable
+                  key={dia.toISOString()}
+                  onPress={() => setDiaSeleccionado(dia)}
+                  style={[
+                    styles.celdaDia,
+                    { borderColor: theme.separator },
+                    esSeleccionado && { backgroundColor: theme.accentSoft },
+                  ]}>
+                  <ThemedText
+                    type="small"
+                    style={[
+                      styles.numeroDia,
+                      !delMes && { color: theme.textSecondary, opacity: 0.4 },
+                      esHoy && { color: theme.accent, fontWeight: '800' },
+                    ]}>
+                    {dia.getDate()}
+                  </ThemedText>
+                  <View style={styles.etiquetasDia}>
+                    {visibles.map((ev) => (
+                      <View key={ev.id} style={[styles.etiquetaEvento, { backgroundColor: ev.color || theme.info }]}>
+                        <ThemedText numberOfLines={1} style={styles.etiquetaTexto}>
+                          {ev.todo_el_dia ? ev.titulo : ev.titulo}
+                        </ThemedText>
+                      </View>
+                    ))}
+                    {restantes > 0 && (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.masEventos}>
+                        +{restantes} más
+                      </ThemedText>
+                    )}
                   </View>
-                  {nEventos > 0 && <View style={[styles.puntoEvento, { backgroundColor: esSeleccionado ? theme.accent : theme.info }]} />}
                 </Pressable>
               );
             })}
@@ -185,8 +214,11 @@ const styles = StyleSheet.create({
   filaSemana: { flexDirection: 'row' },
   celdaCabecera: { flex: 1, textAlign: 'center' },
   rejilla: { flexDirection: 'row', flexWrap: 'wrap' },
-  celdaDia: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 4, gap: 2 },
-  circuloDia: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  puntoEvento: { width: 5, height: 5, borderRadius: 3 },
+  celdaDia: { width: `${100 / 7}%`, minHeight: 62, paddingVertical: 3, paddingHorizontal: 2, borderWidth: StyleSheet.hairlineWidth, gap: 2 },
+  numeroDia: { fontSize: 11, textAlign: 'center' },
+  etiquetasDia: { gap: 1.5 },
+  etiquetaEvento: { borderRadius: 3, paddingHorizontal: 2, paddingVertical: 1 },
+  etiquetaTexto: { fontSize: 8, lineHeight: 10, color: '#fff', fontWeight: '600' },
+  masEventos: { fontSize: 8, lineHeight: 10, textAlign: 'center' },
   tarjetaExterna: { marginTop: Spacing.four },
 });

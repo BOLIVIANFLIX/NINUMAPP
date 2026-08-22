@@ -181,7 +181,7 @@ export function IngresosGastos({ onVolver }: { onVolver: () => void }) {
 
 function FormularioGasto({ mes, mesActual, onCreado }: { mes: string; mesActual: boolean; onCreado: () => void }) {
   const theme = useTheme();
-  const [categoria, setCategoria] = useState('otros');
+  const [categoria, setCategoria] = useState('materia_prima');
   const [descripcion, setDescripcion] = useState('');
   const [lugarCompra, setLugarCompra] = useState('');
   const [producto, setProducto] = useState('');

@@ -8,13 +8,15 @@ Dos fuentes distintas, cada una con su propio "conectado":
   misma lógica que panel._seccion_inicio, leídas vía panel_agente.py. NINUMAPP nunca
   calcula estos números por su cuenta ni escribe nada ahí."""
 
+import logging
 from datetime import datetime, timezone
 from typing import TypedDict
 
 import asyncpg
 
 from app.services import panel_agente, supabase_db
-from app.services.avisos import solicitudes_pendientes
+
+logger = logging.getLogger(__name__)
 
 _CONSULTA = """
 select
@@ -28,37 +30,36 @@ where o.created_at >= $1
 
 class ResumenMes(TypedDict):
     pedidos_confirmados_mes: int
-    solicitudes_pendientes: int
     financiero: panel_agente.ResumenFinanciero | None
     financiero_conectado: bool
 
 
-async def resumen_mes() -> tuple[ResumenMes | None, bool]:
-    """Devuelve (resumen, conectado) -- "conectado" aquí se refiere a Supabase (la
-    parte de pedidos de la tienda); la parte financiera trae su propio flag
-    `financiero_conectado` porque depende de una integración aparte."""
-    if not supabase_db.configurada():
-        return None, False
+async def resumen_mes() -> tuple[ResumenMes, bool]:
+    """Devuelve (resumen, conectado_supabase) -- Supabase (pedidos de la tienda) y
+    ninuma-agente (parte financiera, con su propio `financiero_conectado`) son
+    integraciones independientes: si una falla, la otra sigue funcionando, nunca se
+    apaga Inicio entero por un fallo puntual de Supabase."""
+    pedidos_confirmados = 0
+    conectado_supabase = False
 
-    ahora = datetime.now(timezone.utc)
-    inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if supabase_db.configurada():
+        try:
+            conn = await supabase_db.conectar()
+            try:
+                ahora = datetime.now(timezone.utc)
+                inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                fila = await conn.fetchrow(_CONSULTA, inicio_mes)
+                pedidos_confirmados = fila["pedidos_confirmados"]
+                conectado_supabase = True
+            finally:
+                await conn.close()
+        except (OSError, asyncpg.PostgresError):
+            logger.exception("No se ha podido conectar a Supabase para resumen_mes()")
 
-    try:
-        conn = await supabase_db.conectar()
-    except (OSError, asyncpg.PostgresError):
-        return None, False
-
-    try:
-        fila = await conn.fetchrow(_CONSULTA, inicio_mes)
-    finally:
-        await conn.close()
-
-    solicitudes, _ = await solicitudes_pendientes()
     financiero, financiero_conectado = await panel_agente.resumen_financiero()
 
     return ResumenMes(
-        pedidos_confirmados_mes=fila["pedidos_confirmados"],
-        solicitudes_pendientes=len(solicitudes),
+        pedidos_confirmados_mes=pedidos_confirmados,
         financiero=financiero,
         financiero_conectado=financiero_conectado,
-    ), True
+    ), conectado_supabase

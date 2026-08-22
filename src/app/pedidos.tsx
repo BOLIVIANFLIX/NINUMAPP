@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -57,6 +58,12 @@ export default function PedidosScreen() {
   const [vista, setVista] = useState<Vista>({ tipo: 'principal' });
   const [sub, setSub] = useState<Sub>('Profesionales');
   const [cerrandoMes, setCerrandoMes] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => setVista({ tipo: 'principal' });
+    }, []),
+  );
 
   const profesionalesQuery = useQuery({ queryKey: ['clientes-profesionales'], queryFn: obtenerClientesProfesionales });
   const acumuladoItemizadoQuery = useQuery({ queryKey: ['acumulado-mensual-itemizado'], queryFn: obtenerAcumuladoMensualItemizado, enabled: sub === 'Profesionales' });

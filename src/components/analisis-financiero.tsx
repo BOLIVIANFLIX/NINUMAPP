@@ -37,6 +37,8 @@ export function AnalisisFinanciero({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
   const [sub, setSub] = useState<Sub>('Resumen');
   const [p, setP] = useState<PeriodoAnalisis>('mes');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
 
   return (
     <ThemedView style={styles.container}>
@@ -54,22 +56,47 @@ export function AnalisisFinanciero({ onVolver }: { onVolver: () => void }) {
           <Segmented opciones={['Resumen', 'Productos', 'Recetas', 'Precios']} activo={sub} onCambiar={(v) => setSub(v as Sub)} />
 
           {(sub === 'Resumen' || sub === 'Productos') && (
-            <View style={styles.selectorPeriodo}>
-              {PERIODOS.map((op) => (
-                <Pressable
-                  key={op.valor}
-                  onPress={() => setP(op.valor)}
-                  style={[styles.chipPeriodo, { borderColor: p === op.valor ? theme.accent : theme.separator }]}>
-                  <ThemedText type="small" style={{ color: p === op.valor ? theme.accent : theme.textSecondary, fontWeight: '700' }}>
-                    {op.etiqueta}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </View>
+            <>
+              <View style={styles.selectorPeriodo}>
+                {PERIODOS.map((op) => (
+                  <Pressable
+                    key={op.valor}
+                    onPress={() => setP(op.valor)}
+                    style={[styles.chipPeriodo, { borderColor: p === op.valor ? theme.accent : theme.separator }]}>
+                    <ThemedText type="small" style={{ color: p === op.valor ? theme.accent : theme.textSecondary, fontWeight: '700' }}>
+                      {op.etiqueta}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+              <Pressable onPress={() => setP('rango')} style={styles.enlaceRango}>
+                <ThemedText type="small" style={{ color: theme.accent, fontWeight: '700' }}>
+                  {p === 'rango' ? '▾' : '▸'} Rango personalizado
+                </ThemedText>
+              </Pressable>
+              {p === 'rango' && (
+                <View style={styles.filaRango}>
+                  <TextInput
+                    value={desde}
+                    onChangeText={setDesde}
+                    placeholder="Desde YYYY-MM-DD"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.inputRango, { color: theme.text, borderColor: theme.separator }]}
+                  />
+                  <TextInput
+                    value={hasta}
+                    onChangeText={setHasta}
+                    placeholder="Hasta YYYY-MM-DD"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.inputRango, { color: theme.text, borderColor: theme.separator }]}
+                  />
+                </View>
+              )}
+            </>
           )}
 
-          {sub === 'Resumen' && <TabResumen p={p} />}
-          {sub === 'Productos' && <TabProductos p={p} />}
+          {sub === 'Resumen' && <TabResumen p={p} desde={desde || undefined} hasta={hasta || undefined} />}
+          {sub === 'Productos' && <TabProductos p={p} desde={desde || undefined} hasta={hasta || undefined} />}
           {sub === 'Recetas' && <TabRecetas />}
           {sub === 'Precios' && <TabPrecios />}
         </ScrollView>
@@ -78,9 +105,9 @@ export function AnalisisFinanciero({ onVolver }: { onVolver: () => void }) {
   );
 }
 
-function TabResumen({ p }: { p: PeriodoAnalisis }) {
+function TabResumen({ p, desde, hasta }: { p: PeriodoAnalisis; desde?: string; hasta?: string }) {
   const theme = useTheme();
-  const { data, isLoading, error } = useQuery({ queryKey: ['analisis', 'resumen', p], queryFn: () => obtenerAnalisisResumen(p) });
+  const { data, isLoading, error } = useQuery({ queryKey: ['analisis', 'resumen', p, desde, hasta], queryFn: () => obtenerAnalisisResumen(p, desde, hasta) });
   if (isLoading) return <ActivityIndicator color={theme.accent} style={styles.centro} />;
   if (error) return <ThemedText type="small" themeColor="danger">{mensajeError(error)}</ThemedText>;
   if (!data) return null;
@@ -94,9 +121,9 @@ function TabResumen({ p }: { p: PeriodoAnalisis }) {
   );
 }
 
-function TabProductos({ p }: { p: PeriodoAnalisis }) {
+function TabProductos({ p, desde, hasta }: { p: PeriodoAnalisis; desde?: string; hasta?: string }) {
   const theme = useTheme();
-  const { data, isLoading, error } = useQuery({ queryKey: ['analisis', 'productos', p], queryFn: () => obtenerAnalisisProductos(p) });
+  const { data, isLoading, error } = useQuery({ queryKey: ['analisis', 'productos', p, desde, hasta], queryFn: () => obtenerAnalisisProductos(p, desde, hasta) });
   if (isLoading) return <ActivityIndicator color={theme.accent} style={styles.centro} />;
   if (error) return <ThemedText type="small" themeColor="danger">{mensajeError(error)}</ThemedText>;
   if (!data?.length) return <ThemedText type="small" themeColor="textSecondary" style={styles.centro}>Sin ventas registradas en este periodo.</ThemedText>;
@@ -266,6 +293,9 @@ const styles = StyleSheet.create({
   centro: { marginTop: Spacing.five },
   selectorPeriodo: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.one },
   chipPeriodo: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5 },
+  enlaceRango: { marginTop: Spacing.two },
+  filaRango: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.two },
+  inputRango: { flex: 1, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13 },
   seccion: { marginTop: Spacing.two, marginBottom: Spacing.two, letterSpacing: 0.3 },
   formCard: { borderRadius: 16, padding: Spacing.three, gap: Spacing.two },
   filaCampos: { flexDirection: 'row', gap: Spacing.two },

@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InventarioEscaner } from '@/components/inventario-escaner';
@@ -29,6 +30,12 @@ export default function ObradorScreen() {
   const theme = useTheme();
   const [vista, setVista] = useState<Vista>('obrador');
   const [sub, setSub] = useState<Sub>('Sensores');
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => setVista('obrador');
+    }, []),
+  );
 
   const recientes = useQuery({ queryKey: ['obrador', 'alarmas-recientes'], queryFn: obtenerAlarmasRecientes });
   const sensores = useQuery({ queryKey: ['obrador', 'sensores'], queryFn: obtenerSensores, refetchInterval: 30_000 });
@@ -66,6 +73,11 @@ export default function ObradorScreen() {
                   </Ficha>
                 </>
               )}
+              {recientes.data?.aviso && (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.avisoTexto}>
+                  ℹ️ {recientes.data.aviso}
+                </ThemedText>
+              )}
 
               {sensores.data?.alarma_activa != null &&
                 (sensores.data.alarma_activa.toLowerCase().startsWith('ninguna') ? (
@@ -85,9 +97,31 @@ export default function ObradorScreen() {
               <SectionLabel>Sensores</SectionLabel>
               {sensores.isLoading && <ActivityIndicator color={theme.accent} />}
               {sensores.data?.aviso && (
-                <ThemedText type="small" themeColor="textSecondary">
-                  ℹ️ {sensores.data.aviso}
-                </ThemedText>
+                <>
+                  <View style={[styles.avisoHA, { backgroundColor: theme.warningSoft }]}>
+                    <ThemedText type="small" style={{ color: theme.warningText, lineHeight: 19 }}>
+                      Todavía no puedo leer temperaturas de neveras ni consumo eléctrico aquí -- hace falta que generes un{' '}
+                      <ThemedText type="smallBold" style={{ color: theme.warningText }}>
+                        Long-Lived Access Token
+                      </ThemedText>{' '}
+                      desde tu perfil de Home Assistant (Perfil → Seguridad → Tokens de acceso de larga duración) y me lo
+                      pases para configurarlo. Mientras tanto, ábrelo directamente en Home Assistant:
+                    </ThemedText>
+                  </View>
+                  <Pressable onPress={() => Linking.openURL('https://ha.tunga.es')} style={[styles.tarjetaHA, { backgroundColor: theme.backgroundElement }]}>
+                    <View>
+                      <ThemedText type="smallBold">Abrir Home Assistant</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Neveras, consumo eléctrico y todo lo demás
+                      </ThemedText>
+                    </View>
+                    <View style={[styles.botonHA, { backgroundColor: theme.accentSoft }]}>
+                      <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                        Abrir ↗
+                      </ThemedText>
+                    </View>
+                  </Pressable>
+                </>
               )}
               {!!sensores.data?.sensores.length && (
                 <View style={styles.sensorGrid}>
@@ -99,7 +133,7 @@ export default function ObradorScreen() {
 
               {!!sensores.data?.camaras.length && (
                 <>
-                  <SectionLabel>Cámaras (foto actual)</SectionLabel>
+                  <SectionLabel>Cámaras (foto actual, se actualiza al abrir)</SectionLabel>
                   <View style={styles.camaraGrid}>
                     {sensores.data.camaras.map((c) => (
                       <View key={c.entity_id} style={styles.camaraBox}>
@@ -207,6 +241,10 @@ const styles = StyleSheet.create({
   accionIcono: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   bannerAlarma: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three },
   fichaAlarmas: { marginBottom: Spacing.three },
+  avisoTexto: { marginBottom: Spacing.three, lineHeight: 18 },
+  avisoHA: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
+  tarjetaHA: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three, gap: Spacing.two },
+  botonHA: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   sensorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   sensorCard: { flexGrow: 1, flexBasis: '47%', borderRadius: 16, padding: Spacing.three, gap: 2 },
   sensorValor: { fontSize: 22, lineHeight: 26 },

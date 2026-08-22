@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AsuntoEmail, AsuntoPedidoWeb } from '@/components/avisos-pendientes';
@@ -12,20 +13,23 @@ import { UsuariosPanel } from '@/components/usuarios-panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
-  mensajeError,
   obtenerAvisos,
   obtenerAvisosPendientes,
-  obtenerCorreosPendientes,
   obtenerGrandFoliesPendientes,
   type EncargoPendiente,
   type PedidoGrandFolies,
   type PedidoWebPendiente,
 } from '@/lib/api';
 
-const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-
 type Vista = 'avisos' | 'usuarios';
 
+function hoyISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Réplica de panel._seccion_avisos: seguridad, alarma de Casa (verde/rojo), "hoy
+// toca preparar/entregar" destacado, Grand Folies detectados, correo sin resolver,
+// pedidos web pendientes, preguntas de margen, Gestionar usuarios -- mismo orden.
 export default function AvisosScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
@@ -34,8 +38,18 @@ export default function AvisosScreen() {
   const [asuntoPedidoWeb, setAsuntoPedidoWeb] = useState<PedidoWebPendiente | null>(null);
   const [vista, setVista] = useState<Vista>('avisos');
 
-  const solicitudes = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
-  const correos = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes });
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setVista('avisos');
+        setPedidoGF(null);
+        setAsuntoEmail(null);
+        setAsuntoPedidoWeb(null);
+      };
+    }, []),
+  );
+
+  const avisos = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const grandFolies = useQuery({ queryKey: ['avisos', 'grand-folies'], queryFn: obtenerGrandFoliesPendientes });
   const pendientesAgente = useQuery({ queryKey: ['avisos-pendientes'], queryFn: obtenerAvisosPendientes });
 
@@ -57,6 +71,11 @@ export default function AvisosScreen() {
 
   if (vista === 'usuarios') return <UsuariosPanel onVolver={() => setVista('avisos')} />;
 
+  const hoy = hoyISO();
+  const entregasHoy = (grandFolies.data?.pedidos ?? []).filter((p) => p.fecha_entrega === hoy);
+  const alarmaHA = avisos.data?.alarma_activa;
+  const sinAlarma = !!alarmaHA && alarmaHA.toLowerCase().startsWith('ninguna');
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -64,13 +83,49 @@ export default function AvisosScreen() {
           <ThemedText type="title" style={styles.titulo}>
             Avisos
           </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.subtitulo}>
+            Contactos y preguntas pendientes
+          </ThemedText>
 
-          {solicitudes.data?.alarma_activa && (
-            <View style={[styles.bannerAlarma, { backgroundColor: theme.dangerSoft }]}>
-              <ThemedText type="small" style={{ color: theme.danger, fontWeight: '700' }}>
-                ⚠️ {solicitudes.data.alarma_activa}
-              </ThemedText>
-            </View>
+          {!!pendientesAgente.data && pendientesAgente.data.intentos_fallidos_login >= 3 && (
+            <>
+              <SectionLabel>Seguridad</SectionLabel>
+              <View style={[styles.avisoLinea, { backgroundColor: theme.dangerSoft }]}>
+                <ThemedText type="small" style={{ color: theme.danger, fontWeight: '700' }}>
+                  ⚠️ {pendientesAgente.data.intentos_fallidos_login} intentos de inicio de sesión fallidos recientes -- si no
+                  has sido tú, cambia tu contraseña.
+                </ThemedText>
+              </View>
+            </>
+          )}
+
+          {alarmaHA != null && (
+            <>
+              <SectionLabel>Casa (Home Assistant)</SectionLabel>
+              <View style={[styles.avisoLinea, { backgroundColor: sinAlarma ? theme.successSoft : theme.dangerSoft }]}>
+                <ThemedText type="small" style={{ color: sinAlarma ? theme.success : theme.danger, fontWeight: '700' }}>
+                  {sinAlarma ? '✅' : '⚠️'} {alarmaHA}
+                </ThemedText>
+              </View>
+            </>
+          )}
+
+          {!!entregasHoy.length && (
+            <>
+              <SectionLabel>🔔 Hoy toca preparar/entregar</SectionLabel>
+              <ListCard style={[styles.tarjetaDestacada, { borderColor: theme.accent }]}>
+                {entregasHoy.map((p, i) => (
+                  <ListRow
+                    key={p.id}
+                    last={i === entregasHoy.length - 1}
+                    onPress={() => setPedidoGF(p)}
+                    left={<NotifIcono icono="📄" color={theme.accent} bg={theme.accentSoft} />}
+                    title={`Pedido Grand Folies${p.numero_pedido ? ` · ${p.numero_pedido}` : ''}`}
+                    subtitle={`${p.lineas.length} línea(s) · entrega ${p.fecha_entrega ?? 'sin fecha'}${p.faltantes?.length ? ' · ⚠️ falta materia prima' : ''}`}
+                  />
+                ))}
+              </ListCard>
+            </>
           )}
 
           {!!grandFolies.data?.pedidos.length && (
@@ -91,49 +146,7 @@ export default function AvisosScreen() {
             </>
           )}
 
-          <SectionLabel>Solicitudes sin revisar</SectionLabel>
-          {solicitudes.isLoading && <ActivityIndicator color={theme.accent} />}
-          {solicitudes.error && (
-            <ThemedText type="small" themeColor="danger">
-              {mensajeError(solicitudes.error)}
-            </ThemedText>
-          )}
-          {solicitudes.data?.aviso && (
-            <ThemedText type="small" themeColor="textSecondary">
-              ℹ️ {solicitudes.data.aviso}
-            </ThemedText>
-          )}
-          {solicitudes.data?.conectado && solicitudes.data.solicitudes.length === 0 && (
-            <ThemedText type="small" themeColor="textSecondary">
-              No hay solicitudes pendientes de revisar.
-            </ThemedText>
-          )}
-          {!!solicitudes.data?.solicitudes.length && (
-            <ListCard>
-              {solicitudes.data.solicitudes.map((s, i) => (
-                <ListRow
-                  key={s.id}
-                  last={i === solicitudes.data!.solicitudes.length - 1}
-                  left={<NotifIcono icono="🔔" color={theme.warning} bg={theme.warningSoft} />}
-                  title={s.cliente}
-                  subtitle={s.descripcion}
-                  right={
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {fecha.format(new Date(s.creado_en))}
-                    </ThemedText>
-                  }
-                />
-              ))}
-            </ListCard>
-          )}
-
           <SectionLabel>Correo sin resolver</SectionLabel>
-          {pendientesAgente.isLoading && <ActivityIndicator color={theme.accent} />}
-          {pendientesAgente.error && (
-            <ThemedText type="small" themeColor="danger">
-              {mensajeError(pendientesAgente.error)}
-            </ThemedText>
-          )}
           {pendientesAgente.data?.aviso && (
             <ThemedText type="small" themeColor="textSecondary">
               ℹ️ {pendientesAgente.data.aviso}
@@ -177,35 +190,18 @@ export default function AvisosScreen() {
             </>
           )}
 
-          <SectionLabel>Correos sin leer</SectionLabel>
-          {correos.isLoading && <ActivityIndicator color={theme.accent} />}
-          {correos.error && (
-            <ThemedText type="small" themeColor="danger">
-              {mensajeError(correos.error)}
-            </ThemedText>
-          )}
-          {correos.data?.aviso && (
-            <ThemedText type="small" themeColor="textSecondary">
-              ℹ️ {correos.data.aviso}
-            </ThemedText>
-          )}
-          {correos.data?.conectado && correos.data.correos.length === 0 && (
-            <ThemedText type="small" themeColor="textSecondary">
-              No hay correos sin leer.
-            </ThemedText>
-          )}
-          {!!correos.data?.correos.length && (
-            <ListCard>
-              {correos.data.correos.map((c, i) => (
+          {!!pendientesAgente.data && pendientesAgente.data.preguntas_margen_pendientes > 0 && (
+            <>
+              <SectionLabel>Margen por calcular</SectionLabel>
+              <ListCard style={styles.filaMargen}>
                 <ListRow
-                  key={c.id}
-                  last={i === correos.data!.correos.length - 1}
-                  left={<NotifIcono icono="✉️" color={theme.info} bg={theme.infoSoft} />}
-                  title={c.de}
-                  subtitle={`${c.asunto}\n${c.resumen}`}
+                  last
+                  left={<NotifIcono icono="❓" color={theme.warningText} bg={theme.warningSoft} />}
+                  title={`${pendientesAgente.data.preguntas_margen_pendientes} pedido(s) esperando que indiques qué llevan`}
+                  subtitle="Respóndelo por Telegram para calcular su margen"
                 />
-              ))}
-            </ListCard>
+              </ListCard>
+            </>
           )}
 
           <Pressable onPress={() => setVista('usuarios')} style={styles.enlaceUsuarios}>
@@ -231,8 +227,11 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   scroll: { padding: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
-  titulo: { fontSize: 26, lineHeight: 31, marginBottom: Spacing.three },
+  titulo: { fontSize: 26, lineHeight: 31 },
+  subtitulo: { marginBottom: Spacing.two },
   notifIco: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  bannerAlarma: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three },
+  avisoLinea: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
+  tarjetaDestacada: { borderWidth: 1.5 },
+  filaMargen: { paddingHorizontal: 4 },
   enlaceUsuarios: { marginTop: Spacing.four },
 });

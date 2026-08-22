@@ -41,6 +41,16 @@ async def clientes(usuario: Usuario = Depends(usuario_actual)):
     }
 
 
+@router.get("/facturas-pendientes-cobro")
+async def facturas_pendientes_cobro(usuario: Usuario = Depends(usuario_actual)):
+    datos, conectado = await panel_agente.facturas_pendientes_cobro_detalle()
+    return {
+        **datos,
+        "conectado": conectado,
+        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
+    }
+
+
 @router.get("/acumulado-mensual-itemizado")
 async def acumulado_mensual_itemizado(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.acumulado_mensual_itemizado()

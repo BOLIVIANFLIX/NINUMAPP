@@ -32,7 +32,7 @@ export function GrandFoliesConfirmar({ pedido, onVolver, onResuelto }: { pedido:
   const theme = useTheme();
   const [lineas, setLineas] = useState<LineaGrandFolies[]>(pedido.lineas);
   const [numeroManual, setNumeroManual] = useState('');
-  const [usarNumeroManual, setUsarNumeroManual] = useState(false);
+  const [numeroModo, setNumeroModo] = useState<'auto' | 'blank' | 'manual'>('auto');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoAlbaran | null>(null);
@@ -58,11 +58,12 @@ export function GrandFoliesConfirmar({ pedido, onVolver, onResuelto }: { pedido:
     setCargando(true);
     setError(null);
     try {
+      const numero_manual = numeroModo === 'auto' ? null : numeroModo === 'blank' ? '' : numeroManual.trim();
       const resp = await confirmarGrandFolies(
         pedido.id,
         pedido.fecha_entrega,
         pedido.numero_pedido,
-        usarNumeroManual ? numeroManual.trim() : null,
+        numero_manual,
         lineas,
       );
       setResultado(resp);
@@ -215,13 +216,16 @@ export function GrandFoliesConfirmar({ pedido, onVolver, onResuelto }: { pedido:
           )}
 
           <SectionLabel>Número de albarán</SectionLabel>
-          <Pressable onPress={() => setUsarNumeroManual(false)} style={styles.opcionNumero}>
-            <ThemedText type="small">{!usarNumeroManual ? '● ' : '○ '}Automático</ThemedText>
+          <Pressable onPress={() => setNumeroModo('auto')} style={styles.opcionNumero}>
+            <ThemedText type="small">{numeroModo === 'auto' ? '● ' : '○ '}Automático</ThemedText>
           </Pressable>
-          <Pressable onPress={() => setUsarNumeroManual(true)} style={styles.opcionNumero}>
-            <ThemedText type="small">{usarNumeroManual ? '● ' : '○ '}Elegir a mano</ThemedText>
+          <Pressable onPress={() => setNumeroModo('blank')} style={styles.opcionNumero}>
+            <ThemedText type="small">{numeroModo === 'blank' ? '● ' : '○ '}Sin número</ThemedText>
           </Pressable>
-          {usarNumeroManual && (
+          <Pressable onPress={() => setNumeroModo('manual')} style={styles.opcionNumero}>
+            <ThemedText type="small">{numeroModo === 'manual' ? '● ' : '○ '}Elegir a mano</ThemedText>
+          </Pressable>
+          {numeroModo === 'manual' && (
             <TextInput
               value={numeroManual}
               onChangeText={setNumeroManual}

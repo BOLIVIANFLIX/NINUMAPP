@@ -39,7 +39,7 @@ import { tokenStore } from '@/lib/token-store';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
-type Paso = 'cliente' | 'nuevo-cliente' | 'catalogo' | 'anadir' | 'referencia' | 'previsualizar' | 'finalizando' | 'hecho';
+type Paso = 'cliente' | 'catalogo' | 'anadir' | 'referencia' | 'previsualizar' | 'finalizando' | 'hecho';
 
 export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
@@ -63,7 +63,6 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
   const [nuevoNombre, setNuevoNombre] = useState('');
   const [nuevoDireccion, setNuevoDireccion] = useState('');
   const [nuevoCif, setNuevoCif] = useState('');
-  const [nuevoTipoFacturacion, setNuevoTipoFacturacion] = useState<'directa' | 'mensual'>('directa');
 
   async function cargarClientes() {
     setCargando(true);
@@ -105,7 +104,7 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
     setCargando(true);
     setError(null);
     try {
-      await crearClienteProfesional(nuevoNombre.trim(), nuevoDireccion.trim(), nuevoCif.trim(), nuevoTipoFacturacion);
+      await crearClienteProfesional(nuevoNombre.trim(), nuevoDireccion.trim(), nuevoCif.trim(), 'directa');
       await elegirCliente(nuevoNombre.trim());
     } catch (err) {
       setError(mensajeError(err));
@@ -271,12 +270,7 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
 
           {paso === 'cliente' && (
             <>
-              <View style={styles.filaTituloPaso}>
-                <SectionLabel>Elige cliente</SectionLabel>
-                <Pressable onPress={() => setPaso('nuevo-cliente')}>
-                  <ThemedText type="link" style={{ color: theme.accent }}>＋ Cliente nuevo</ThemedText>
-                </Pressable>
-              </View>
+              <SectionLabel>¿Para qué cliente es?</SectionLabel>
               {cargando && <ActivityIndicator color={theme.accent} />}
               {clientes && (
                 <ListCard>
@@ -285,31 +279,15 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
                   ))}
                 </ListCard>
               )}
-            </>
-          )}
 
-          {paso === 'nuevo-cliente' && (
-            <>
               <SectionLabel>Cliente nuevo</SectionLabel>
-              <Campo etiqueta="Nombre" valor={nuevoNombre} onCambiar={setNuevoNombre} />
-              <Campo etiqueta="Dirección (opcional)" valor={nuevoDireccion} onCambiar={setNuevoDireccion} />
-              <Campo etiqueta="CIF/NIF (opcional)" valor={nuevoCif} onCambiar={setNuevoCif} />
-              <View style={styles.tipoFacturacionFila}>
-                <Pressable onPress={() => setNuevoTipoFacturacion('directa')} style={styles.radioFila}>
-                  <View style={[styles.radioCirculo, { borderColor: nuevoTipoFacturacion === 'directa' ? theme.accent : theme.separator }]}>
-                    {nuevoTipoFacturacion === 'directa' && <View style={[styles.radioRelleno, { backgroundColor: theme.accent }]} />}
-                  </View>
-                  <ThemedText type="small">Directa por pedido</ThemedText>
-                </Pressable>
-                <Pressable onPress={() => setNuevoTipoFacturacion('mensual')} style={styles.radioFila}>
-                  <View style={[styles.radioCirculo, { borderColor: nuevoTipoFacturacion === 'mensual' ? theme.accent : theme.separator }]}>
-                    {nuevoTipoFacturacion === 'mensual' && <View style={[styles.radioRelleno, { backgroundColor: theme.accent }]} />}
-                  </View>
-                  <ThemedText type="small">Mensual acumulada</ThemedText>
-                </Pressable>
+              <View style={[styles.fichaClienteNuevo, { backgroundColor: theme.backgroundElement }]}>
+                <Campo etiqueta="Nombre" valor={nuevoNombre} onCambiar={setNuevoNombre} />
+                <Campo etiqueta="Dirección" valor={nuevoDireccion} onCambiar={setNuevoDireccion} />
+                <Campo etiqueta="CIF/NIF" valor={nuevoCif} onCambiar={setNuevoCif} />
               </View>
               <View style={styles.botonesFila}>
-                <BotonPrimario texto="Crear y continuar" onPress={crearYElegirCliente} cargando={cargando} />
+                <BotonPrimario texto="Empezar con este cliente" onPress={crearYElegirCliente} cargando={cargando} />
               </View>
             </>
           )}
@@ -511,6 +489,7 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 26, lineHeight: 31, marginTop: Spacing.one },
   error: { lineHeight: 20 },
   filaTituloPaso: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.two },
+  fichaClienteNuevo: { borderRadius: 16, paddingHorizontal: Spacing.three },
   tipoFacturacionFila: { marginTop: Spacing.one },
   radioFila: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: 8 },
   radioCirculo: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },

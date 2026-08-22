@@ -8,12 +8,15 @@ Si supabase_db_host no está configurado, o la conexión falla, se devuelve una 
 vacía con `conectado=False` en vez de reventar -- igual que HA/Grocy, esta sección se
 queda "sin datos" sin tumbar el resto de la app."""
 
+import logging
 from datetime import datetime
 from typing import TypedDict
 
 import asyncpg
 
 from app.services import supabase_db
+
+logger = logging.getLogger(__name__)
 
 
 class Pedido(TypedDict):
@@ -54,6 +57,7 @@ async def pedidos_confirmados() -> tuple[list[Pedido], bool]:
     try:
         conn = await supabase_db.conectar()
     except (OSError, asyncpg.PostgresError):
+        logger.exception("No se ha podido conectar a Supabase para pedidos_confirmados()")
         return [], False
 
     try:
