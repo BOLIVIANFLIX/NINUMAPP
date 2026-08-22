@@ -70,3 +70,13 @@ class GuardarTiempoBody(BaseModel):
 @_manejar_error
 async def guardar_tiempo(body: GuardarTiempoBody, usuario: Usuario = Depends(usuario_actual)):
     return await panel_agente.guardar_tiempo_receta(body.recipe_id, body.minutos, body.precio_hora)
+
+
+@router.get("/iva-trimestre")
+async def iva_trimestre(anio: int, trimestre: int, usuario: Usuario = Depends(usuario_actual)):
+    """No sustituye al gestor -- ver ninuma-agente/inventario.iva_trimestre para el
+    alcance real (todavía no incluye la tienda online)."""
+    datos = await panel_agente.iva_trimestre(anio, trimestre)
+    if datos is None:
+        raise HTTPException(status_code=502, detail="No se ha podido calcular el IVA del trimestre.")
+    return datos

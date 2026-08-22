@@ -14,7 +14,7 @@ import { crearGasto, eliminarGasto, marcarGastoPagado, mensajeError, obtenerIngr
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-const ETIQUETAS_CATEGORIA: Record<string, string> = {
+export const ETIQUETAS_CATEGORIA: Record<string, string> = {
   materia_prima: 'Materia prima (a mano)',
   alquiler: 'Alquiler',
   electricidad: 'Electricidad',

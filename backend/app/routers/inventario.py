@@ -7,6 +7,7 @@ albaranes/Grand Folies, para que quede en la contabilidad real."""
 import functools
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.models import Usuario
@@ -52,10 +53,24 @@ class EscaneoIdBody(BaseModel):
     id: str
 
 
+class ConfirmarBody(BaseModel):
+    id: str
+    # Correcciones opcionales -- solo se mandan si Ariadna ha editado lo leído por la
+    # IA antes de confirmar (categoría del gasto, desglose de IVA). Si no se manda
+    # nada, ninuma-agente usa tal cual lo que leyó al escanear.
+    categoria: str | None = None
+    base_imponible: float | None = None
+    iva_importe: float | None = None
+    iva_porcentaje: float | None = None
+
+
 @router.post("/confirmar")
 @_manejar_error
-async def confirmar(body: EscaneoIdBody, usuario: Usuario = Depends(usuario_actual)):
-    return await panel_agente.inventario_confirmar(body.id)
+async def confirmar(body: ConfirmarBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.inventario_confirmar(
+        body.id, categoria=body.categoria, base_imponible=body.base_imponible,
+        iva_importe=body.iva_importe, iva_porcentaje=body.iva_porcentaje,
+    )
 
 
 @router.post("/descartar")
@@ -83,3 +98,18 @@ async def movimientos_recientes(usuario: Usuario = Depends(usuario_actual)):
         "conectado": conectado,
         "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
     }
+
+
+@router.get("/tickets-periodo")
+async def tickets_periodo(desde: str, hasta: str, usuario: Usuario = Depends(usuario_actual)):
+    """Zip con las fotos de todos los tickets confirmados en el rango (AAAA-MM-DD),
+    para pasarle al gestor -- ver services/panel_agente.inventario_tickets_periodo."""
+    resultado = await panel_agente.inventario_tickets_periodo(desde, hasta)
+    if resultado is None:
+        raise HTTPException(status_code=502, detail="No se ha podido generar la descarga.")
+    contenido, content_type = resultado
+    return Response(
+        content=contenido,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="tickets_{desde}_a_{hasta}.zip"'},
+    )

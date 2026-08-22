@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BotonPrimario } from '@/components/boton-primario';
 import { EscanerCamara } from '@/components/escaner-camara';
+import { ETIQUETAS_CATEGORIA } from '@/components/ingresos-gastos';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow } from '@/components/ui/panel';
@@ -15,6 +16,7 @@ import {
   escanearInventario,
   mensajeError,
   type BorradorEscaneo,
+  type CorreccionTicket,
   type ResultadoConfirmarInventario,
 } from '@/lib/api';
 
@@ -31,12 +33,27 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
   const [borrador, setBorrador] = useState<BorradorEscaneo | null>(null);
   const [resultado, setResultado] = useState<ResultadoConfirmarInventario | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Correcciones que Ariadna puede hacer antes de confirmar un ticket (categoría de
+  // gasto, desglose de IVA) -- solo se rellena cuando el borrador es ticket_compra,
+  // ver sincronización con setBorrador en alHacerFoto.
+  const [correccion, setCorreccion] = useState<CorreccionTicket>({});
 
   async function alHacerFoto(uri: string) {
     setPaso('leyendo');
     setError(null);
     try {
-      setBorrador(await escanearInventario(uri));
+      const nuevoBorrador = await escanearInventario(uri);
+      setBorrador(nuevoBorrador);
+      setCorreccion(
+        nuevoBorrador.tipo === 'ticket_compra'
+          ? {
+              categoria: nuevoBorrador.categoria ?? 'otros',
+              base_imponible: nuevoBorrador.base_imponible ?? undefined,
+              iva_importe: nuevoBorrador.iva_importe ?? undefined,
+              iva_porcentaje: nuevoBorrador.iva_porcentaje ?? undefined,
+            }
+          : {}
+      );
       setPaso('revisar');
     } catch (err) {
       setError(mensajeError(err));
@@ -49,7 +66,7 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
     setPaso('confirmando');
     setError(null);
     try {
-      const res = await confirmarInventario(borrador.id);
+      const res = await confirmarInventario(borrador.id, borrador.tipo === 'ticket_compra' ? correccion : undefined);
       if (!res.ok) {
         setError(res.error ?? 'No se ha podido confirmar.');
         setPaso('revisar');
@@ -72,6 +89,7 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
       }
     }
     setBorrador(null);
+    setCorreccion({});
     setError(null);
     setPaso('camara');
   }
@@ -107,7 +125,11 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
           {paso === 'hecho' && resultado && (
             <View style={styles.centro}>
               <ThemedText type="default">
-                ✅ {(resultado.sumadas?.length ?? 0)} producto(s) actualizados en Grocy.
+                {resultado.categoria === 'materia_prima'
+                  ? `✅ ${resultado.sumadas?.length ?? 0} producto(s) actualizados en Grocy, y registrado como gasto.`
+                  : resultado.categoria
+                    ? `✅ Registrado como gasto (${ETIQUETAS_CATEGORIA[resultado.categoria] ?? resultado.categoria}). No toca el stock.`
+                    : `✅ ${resultado.sumadas?.length ?? 0} receta(s) descontadas del stock.`}
               </ThemedText>
               {!!resultado.sin_emparejar?.length && (
                 <ThemedText type="small" themeColor="danger" style={styles.aviso}>
@@ -119,7 +141,7 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
           )}
 
           {(paso === 'revisar' || paso === 'confirmando') && borrador && (
-            <RevisionBorrador borrador={borrador} />
+            <RevisionBorrador borrador={borrador} correccion={correccion} onCambiarCorreccion={setCorreccion} theme={theme} />
           )}
         </ScrollView>
 
@@ -140,38 +162,109 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
   );
 }
 
-function RevisionBorrador({ borrador }: { borrador: BorradorEscaneo }) {
+function RevisionBorrador({
+  borrador,
+  correccion,
+  onCambiarCorreccion,
+  theme,
+}: {
+  borrador: BorradorEscaneo;
+  correccion: CorreccionTicket;
+  onCambiarCorreccion: (c: CorreccionTicket) => void;
+  theme: ReturnType<typeof useTheme>;
+}) {
   if (borrador.tipo === 'ticket_compra') {
     const etiqueta = `Ticket de compra${borrador.proveedor ? ` · ${borrador.proveedor}` : ' · proveedor sin identificar'}`;
+    const esMateriaPrima = correccion.categoria === 'materia_prima';
     return (
       <>
         <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>{etiqueta.toUpperCase()}</ThemedText>
-        {borrador.lineas.length === 0 ? (
-          <ThemedText type="small" themeColor="textSecondary">No he leído ninguna línea con claridad.</ThemedText>
+
+        <ThemedText type="small" themeColor="textSecondary">Categoría del gasto</ThemedText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsCategoria}>
+          {Object.entries(ETIQUETAS_CATEGORIA).map(([valor, texto]) => (
+            <Pressable
+              key={valor}
+              onPress={() => onCambiarCorreccion({ ...correccion, categoria: valor })}
+              style={[styles.chip, { borderColor: correccion.categoria === valor ? theme.accent : theme.separator }]}>
+              <ThemedText type="small" style={{ color: correccion.categoria === valor ? theme.accent : theme.textSecondary }}>{texto}</ThemedText>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {esMateriaPrima ? (
+          borrador.lineas.length === 0 ? (
+            <ThemedText type="small" themeColor="textSecondary">No he leído ninguna línea con claridad.</ThemedText>
+          ) : (
+            <ListCard>
+              {borrador.lineas.map((l, i) => {
+                const icono = !l.es_producto ? '➖' : l.product_id !== null ? '✅' : '❌';
+                const nota = !l.es_producto
+                  ? 'gasto, no es stock'
+                  : l.product_id !== null
+                    ? `se sumará a «${l.nombre_grocy ?? l.descripcion}»`
+                    : 'no lo he podido emparejar, no se tocará';
+                return (
+                  <ListRow
+                    key={`${l.descripcion}-${i}`}
+                    last={i === borrador.lineas.length - 1}
+                    title={`${icono} ${l.descripcion}`}
+                    subtitle={nota}
+                    right={<ThemedText type="small" themeColor="textSecondary">×{l.cantidad}</ThemedText>}
+                  />
+                );
+              })}
+            </ListCard>
+          )
         ) : (
-          <ListCard>
-            {borrador.lineas.map((l, i) => {
-              const icono = !l.es_producto ? '➖' : l.product_id !== null ? '✅' : '❌';
-              const nota = !l.es_producto
-                ? 'gasto, no es stock'
-                : l.product_id !== null
-                  ? `se sumará a «${l.nombre_grocy ?? l.descripcion}»`
-                  : 'no lo he podido emparejar, no se tocará';
-              return (
-                <ListRow
-                  key={`${l.descripcion}-${i}`}
-                  last={i === borrador.lineas.length - 1}
-                  title={`${icono} ${l.descripcion}`}
-                  subtitle={nota}
-                  right={<ThemedText type="small" themeColor="textSecondary">×{l.cantidad}</ThemedText>}
-                />
-              );
-            })}
-          </ListCard>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.leyenda}>
+            Esta categoría no toca el stock -- solo se registra como gasto.
+          </ThemedText>
         )}
-        <ThemedText type="small" themeColor="textSecondary" style={styles.leyenda}>
-          ✅ se sumará a inventario · ❌ no se ha podido emparejar (no se toca) · ➖ gasto, no es mercancía.
+        {esMateriaPrima && (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.leyenda}>
+            ✅ se sumará a inventario · ❌ no se ha podido emparejar (no se toca) · ➖ gasto, no es mercancía.
+          </ThemedText>
+        )}
+
+        <ThemedText type="small" themeColor="textSecondary" style={styles.seccion}>
+          Desglose de IVA {borrador.iva_importe === null && '(no leído en el ticket -- corrígelo si lo sabes)'}
         </ThemedText>
+        <View style={styles.filaIva}>
+          <View style={styles.campoIva}>
+            <ThemedText type="small" themeColor="textSecondary">Base imponible</ThemedText>
+            <TextInput
+              value={correccion.base_imponible?.toString() ?? ''}
+              onChangeText={(t) => onCambiarCorreccion({ ...correccion, base_imponible: t ? parseFloat(t.replace(',', '.')) : undefined })}
+              keyboardType="decimal-pad"
+              placeholder="0,00"
+              placeholderTextColor={theme.textSecondary}
+              style={[styles.inputIva, { color: theme.text, borderColor: theme.separator }]}
+            />
+          </View>
+          <View style={styles.campoIva}>
+            <ThemedText type="small" themeColor="textSecondary">IVA (%)</ThemedText>
+            <TextInput
+              value={correccion.iva_porcentaje?.toString() ?? ''}
+              onChangeText={(t) => onCambiarCorreccion({ ...correccion, iva_porcentaje: t ? parseFloat(t.replace(',', '.')) : undefined })}
+              keyboardType="decimal-pad"
+              placeholder="21"
+              placeholderTextColor={theme.textSecondary}
+              style={[styles.inputIva, { color: theme.text, borderColor: theme.separator }]}
+            />
+          </View>
+          <View style={styles.campoIva}>
+            <ThemedText type="small" themeColor="textSecondary">IVA (€)</ThemedText>
+            <TextInput
+              value={correccion.iva_importe?.toString() ?? ''}
+              onChangeText={(t) => onCambiarCorreccion({ ...correccion, iva_importe: t ? parseFloat(t.replace(',', '.')) : undefined })}
+              keyboardType="decimal-pad"
+              placeholder="0,00"
+              placeholderTextColor={theme.textSecondary}
+              style={[styles.inputIva, { color: theme.text, borderColor: theme.separator }]}
+            />
+          </View>
+        </View>
       </>
     );
   }
@@ -202,6 +295,11 @@ const styles = StyleSheet.create({
   scroll: { padding: Spacing.four, paddingBottom: Spacing.four, gap: Spacing.one },
   titulo: { fontSize: 26, lineHeight: 31, marginBottom: Spacing.two },
   centro: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.five },
+  chipsCategoria: { flexDirection: 'row', marginBottom: Spacing.two },
+  chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, marginRight: 6 },
+  filaIva: { flexDirection: 'row', gap: Spacing.two },
+  campoIva: { flex: 1, gap: 4 },
+  inputIva: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15 },
   aviso: { lineHeight: 20 },
   seccion: { marginBottom: Spacing.two, letterSpacing: 0.3 },
   leyenda: { marginTop: Spacing.two, lineHeight: 18 },

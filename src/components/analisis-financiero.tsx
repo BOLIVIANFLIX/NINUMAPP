@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha, KpiCard, KpiRow, ListCard, ListRow, Segmented } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { tokenStore } from '@/lib/token-store';
 import {
   guardarConfigCostes,
   guardarTiempoReceta,
@@ -16,6 +19,8 @@ import {
   obtenerAnalisisProductos,
   obtenerAnalisisRecetas,
   obtenerAnalisisResumen,
+  obtenerIvaTrimestre,
+  urlTicketsPeriodo,
   type PeriodoAnalisis,
   type RecetaCoste,
 } from '@/lib/api';
@@ -23,7 +28,12 @@ import {
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 const eur3 = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
-type Sub = 'Resumen' | 'Productos' | 'Recetas' | 'Precios';
+type Sub = 'Resumen' | 'Productos' | 'Recetas' | 'Precios' | 'Impuestos';
+
+export function trimestreActual(): { anio: number; trimestre: number } {
+  const ahora = new Date();
+  return { anio: ahora.getFullYear(), trimestre: Math.floor(ahora.getMonth() / 3) + 1 };
+}
 
 const PERIODOS: { valor: PeriodoAnalisis; etiqueta: string }[] = [
   { valor: 'semana', etiqueta: '7 días' },
@@ -33,9 +43,9 @@ const PERIODOS: { valor: PeriodoAnalisis; etiqueta: string }[] = [
 
 // Réplica de /panel/analisis -- 4 pestañas, mismas cifras/funciones de ninuma-agente
 // (csv_contabilidad/costes/db) vía panel_agente, nunca recalculadas aquí.
-export function AnalisisFinanciero({ onVolver }: { onVolver: () => void }) {
+export function AnalisisFinanciero({ onVolver, subInicial }: { onVolver: () => void; subInicial?: Sub }) {
   const theme = useTheme();
-  const [sub, setSub] = useState<Sub>('Resumen');
+  const [sub, setSub] = useState<Sub>(subInicial ?? 'Resumen');
   const [p, setP] = useState<PeriodoAnalisis>('mes');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -53,7 +63,7 @@ export function AnalisisFinanciero({ onVolver }: { onVolver: () => void }) {
             Análisis financiero
           </ThemedText>
 
-          <Segmented opciones={['Resumen', 'Productos', 'Recetas', 'Precios']} activo={sub} onCambiar={(v) => setSub(v as Sub)} />
+          <Segmented opciones={['Resumen', 'Productos', 'Recetas', 'Precios', 'Impuestos']} activo={sub} onCambiar={(v) => setSub(v as Sub)} />
 
           {(sub === 'Resumen' || sub === 'Productos') && (
             <>
@@ -99,6 +109,7 @@ export function AnalisisFinanciero({ onVolver }: { onVolver: () => void }) {
           {sub === 'Productos' && <TabProductos p={p} desde={desde || undefined} hasta={hasta || undefined} />}
           {sub === 'Recetas' && <TabRecetas />}
           {sub === 'Precios' && <TabPrecios />}
+          {sub === 'Impuestos' && <TabImpuestos />}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -275,6 +286,97 @@ function TabPrecios() {
   );
 }
 
+function TabImpuestos() {
+  const theme = useTheme();
+  const [{ anio, trimestre }, setPeriodo] = useState(trimestreActual());
+  const [descargando, setDescargando] = useState(false);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['analisis', 'iva-trimestre', anio, trimestre],
+    queryFn: () => obtenerIvaTrimestre(anio, trimestre),
+  });
+
+  function cambiarTrimestre(delta: number) {
+    let t = trimestre + delta;
+    let a = anio;
+    if (t < 1) { t = 4; a -= 1; }
+    if (t > 4) { t = 1; a += 1; }
+    setPeriodo({ anio: a, trimestre: t });
+  }
+
+  async function descargarTickets() {
+    if (!data) return;
+    setDescargando(true);
+    try {
+      const token = tokenStore.getAccessToken();
+      const destino = new File(Paths.cache, `tickets-${data.anio}-T${data.trimestre}.zip`);
+      const archivo = await File.downloadFileAsync(urlTicketsPeriodo(data.desde, data.hasta), destino, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        idempotent: true,
+      });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(archivo.uri);
+    } catch {
+      Alert.alert('No se ha podido descargar', 'Inténtalo de nuevo en unos segundos.');
+    } finally {
+      setDescargando(false);
+    }
+  }
+
+  return (
+    <>
+      <View style={styles.selectorTrimestre}>
+        <Pressable onPress={() => cambiarTrimestre(-1)} style={styles.flechaTrimestre}>
+          <ThemedText type="default">‹</ThemedText>
+        </Pressable>
+        <ThemedText type="smallBold">{anio} · T{trimestre}</ThemedText>
+        <Pressable onPress={() => cambiarTrimestre(1)} style={styles.flechaTrimestre}>
+          <ThemedText type="default">›</ThemedText>
+        </Pressable>
+      </View>
+
+      {isLoading && <ActivityIndicator color={theme.accent} style={styles.centro} />}
+      {!!error && <ThemedText type="small" themeColor="danger">{mensajeError(error)}</ThemedText>}
+
+      {data && (
+        <>
+          <KpiRow>
+            <KpiCard label="IVA repercutido" value={eur.format(data.iva_repercutido)} wide />
+            <KpiCard label="IVA soportado" value={eur.format(data.iva_soportado)} />
+            <KpiCard
+              label="A pagar (estimado)"
+              value={eur.format(data.iva_a_pagar_estimado)}
+              wide
+            />
+          </KpiRow>
+
+          <Ficha style={styles.fichaDesglose}>
+            <FilaFicha etiqueta="Base imponible repercutida" valor={eur.format(data.base_imponible_repercutida)} />
+            <FilaFicha etiqueta={`Documentos (B2B/Grand Folies)`} valor={String(data.documentos_repercutido)} />
+            <FilaFicha etiqueta="Base imponible soportada" valor={eur.format(data.base_imponible_soportada)} />
+            <FilaFicha etiqueta="Gastos con IVA leído" valor={String(data.gastos_con_iva_leido)} />
+            <FilaFicha etiqueta="Gastos sin IVA leído" valor={String(data.gastos_sin_iva_leido)} last />
+          </Ficha>
+
+          {data.gastos_sin_iva_leido > 0 && (
+            <ThemedText type="small" themeColor="danger" style={styles.aviso}>
+              ⚠ {data.gastos_sin_iva_leido} gasto(s) de este trimestre no tienen el IVA desglosado (el ticket no lo mostraba, o se metió a mano) -- el IVA soportado real puede ser mayor.
+            </ThemedText>
+          )}
+          <ThemedText type="small" themeColor="textSecondary" style={styles.aviso}>
+            No sustituye a tu gestor: es una comprobación rápida con tus propios datos. Todavía no incluye la tienda online, solo B2B/Grand Folies y los tickets escaneados.
+          </ThemedText>
+
+          <Pressable
+            onPress={descargarTickets}
+            disabled={descargando}
+            style={[styles.botonDescargarTickets, { backgroundColor: theme.backgroundElement, opacity: descargando ? 0.6 : 1 }]}>
+            <ThemedText type="smallBold">{descargando ? 'Preparando…' : '📎 Descargar tickets del trimestre'}</ThemedText>
+          </Pressable>
+        </>
+      )}
+    </>
+  );
+}
+
 function CampoNumero({ etiqueta, valor, onCambiar }: { etiqueta: string; valor: string; onCambiar: (v: string) => void }) {
   const theme = useTheme();
   return (
@@ -308,4 +410,8 @@ const styles = StyleSheet.create({
   acordeonCuerpo: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.three, gap: Spacing.two },
   fichaDesglose: { marginBottom: Spacing.one },
   ingrediente: { lineHeight: 18 },
+  selectorTrimestre: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.three, marginBottom: Spacing.two },
+  flechaTrimestre: { paddingHorizontal: Spacing.two, paddingVertical: 4 },
+  aviso: { lineHeight: 18, marginBottom: Spacing.two },
+  botonDescargarTickets: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: Spacing.one },
 });

@@ -257,7 +257,18 @@ export interface LineaAlbaranPropio {
 }
 
 export type BorradorEscaneo =
-  | { id: string; tipo: 'ticket_compra'; proveedor: string | null; fecha: string | null; total: number | null; lineas: LineaTicketCompra[] }
+  | {
+      id: string;
+      tipo: 'ticket_compra';
+      categoria: string | null;
+      proveedor: string | null;
+      fecha: string | null;
+      total: number | null;
+      base_imponible: number | null;
+      iva_importe: number | null;
+      iva_porcentaje: number | null;
+      lineas: LineaTicketCompra[];
+    }
   | { id: string; tipo: 'albaran_propio'; cliente: string | null; numero: string | null; lineas: LineaAlbaranPropio[] };
 
 export async function escanearInventario(uri: string): Promise<BorradorEscaneo> {
@@ -270,10 +281,18 @@ export interface ResultadoConfirmarInventario {
   error?: string;
   sumadas?: string[];
   sin_emparejar?: string[];
+  categoria?: string;
 }
 
-export async function confirmarInventario(id: string): Promise<ResultadoConfirmarInventario> {
-  const resp = await api.post('/api/inventario/confirmar', { id });
+export interface CorreccionTicket {
+  categoria?: string;
+  base_imponible?: number;
+  iva_importe?: number;
+  iva_porcentaje?: number;
+}
+
+export async function confirmarInventario(id: string, correccion?: CorreccionTicket): Promise<ResultadoConfirmarInventario> {
+  const resp = await api.post('/api/inventario/confirmar', { id, ...correccion });
   return resp.data;
 }
 
@@ -827,6 +846,35 @@ export interface SubidaPrecio {
 export async function obtenerAnalisisPrecios(): Promise<SubidaPrecio[]> {
   const resp = await api.get('/api/analisis/precios');
   return resp.data.avisos;
+}
+
+// --- Impuestos / IVA trimestral ---------------------------------------------------
+// No sustituye al gestor -- ver ninuma-agente/inventario.iva_trimestre para el
+// alcance real (todavía no incluye la tienda online, solo B2B/Grand Folies + los
+// gastos con IVA leído por el escáner de tickets).
+
+export interface IvaTrimestre {
+  anio: number;
+  trimestre: number;
+  desde: string;
+  hasta: string;
+  iva_repercutido: number;
+  base_imponible_repercutida: number;
+  documentos_repercutido: number;
+  iva_soportado: number;
+  base_imponible_soportada: number;
+  gastos_con_iva_leido: number;
+  gastos_sin_iva_leido: number;
+  iva_a_pagar_estimado: number;
+}
+
+export async function obtenerIvaTrimestre(anio: number, trimestre: number): Promise<IvaTrimestre> {
+  const resp = await api.get('/api/analisis/iva-trimestre', { params: { anio, trimestre } });
+  return resp.data;
+}
+
+export function urlTicketsPeriodo(desde: string, hasta: string): string {
+  return `${API_URL}/api/inventario/tickets-periodo?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`;
 }
 
 // --- Ingresos y gastos -----------------------------------------------------------

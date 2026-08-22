@@ -5,7 +5,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlbaranWizard } from '@/components/albaran-wizard';
-import { AnalisisFinanciero } from '@/components/analisis-financiero';
+import { AnalisisFinanciero, trimestreActual } from '@/components/analisis-financiero';
 import { ElegirTipoDocumento } from '@/components/elegir-tipo-documento';
 import { EscanerQREntrada } from '@/components/escaner-qr-entrada';
 import { FacturasPendientesCobro } from '@/components/facturas-pendientes-cobro';
@@ -17,7 +17,7 @@ import { GradientCard, KpiCard, KpiRow, ListCard, ListRow, SectionLabel } from '
 import { UsuariosPanel } from '@/components/usuarios-panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mensajeError, obtenerDocumentosRecientes, obtenerResumen } from '@/lib/api';
+import { mensajeError, obtenerDocumentosRecientes, obtenerIvaTrimestre, obtenerResumen } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -25,7 +25,7 @@ const fechaHoy = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numer
 const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 const fechaLargaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr';
+type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'analisis-impuestos' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr';
 
 // Réplica de panel._seccion_inicio: mismas 3 tarjetas, próxima entrega, acumulado
 // sin facturar, accesos rápidos reales (generar albarán/análisis/gastos) y Gestión
@@ -58,6 +58,11 @@ export default function InicioScreen() {
     queryFn: obtenerResumen,
   });
   const documentos = useQuery({ queryKey: ['documentos-recientes'], queryFn: obtenerDocumentosRecientes });
+  const { anio: anioTrimestre, trimestre: numTrimestre } = trimestreActual();
+  const { data: iva } = useQuery({
+    queryKey: ['analisis', 'iva-trimestre', anioTrimestre, numTrimestre],
+    queryFn: () => obtenerIvaTrimestre(anioTrimestre, numTrimestre),
+  });
 
   const hoy = fechaHoy.format(new Date());
   const f = resumen?.financiero;
@@ -69,6 +74,7 @@ export default function InicioScreen() {
     return <AlbaranWizard onVolver={() => setVista('inicio')} />;
   }
   if (vista === 'analisis') return <AnalisisFinanciero onVolver={() => setVista('inicio')} />;
+  if (vista === 'analisis-impuestos') return <AnalisisFinanciero onVolver={() => setVista('inicio')} subInicial="Impuestos" />;
   if (vista === 'ingresos') return <IngresosGastos onVolver={() => setVista('inicio')} />;
   if (vista === 'precios-tienda') return <PreciosTienda onVolver={() => setVista('inicio')} />;
   if (vista === 'usuarios') return <UsuariosPanel onVolver={() => setVista('inicio')} />;
@@ -161,6 +167,20 @@ export default function InicioScreen() {
                     right={<ThemedText type="smallBold">{eur.format(f.acumulado_sin_facturar.directa.total_eur)}</ThemedText>}
                   />
                 )}
+              </ListCard>
+            </Pressable>
+          )}
+
+          {iva && (
+            <Pressable onPress={() => setVista('analisis-impuestos')}>
+              <ListCard style={styles.tarjetaAcumulado}>
+                <ListRow
+                  last
+                  left={<Dot color={iva.iva_a_pagar_estimado >= 0 ? 'warning' : 'info'}>IVA</Dot>}
+                  title={`IVA trimestre · T${iva.trimestre}`}
+                  subtitle={`Repercutido ${eur.format(iva.iva_repercutido)} · Soportado ${eur.format(iva.iva_soportado)}`}
+                  right={<ThemedText type="smallBold">{eur.format(iva.iva_a_pagar_estimado)}</ThemedText>}
+                />
               </ListCard>
             </Pressable>
           )}

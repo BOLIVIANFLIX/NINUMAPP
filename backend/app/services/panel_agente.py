@@ -326,8 +326,20 @@ async def inventario_escanear(imagen: bytes, content_type: str) -> dict:
         raise PanelAgenteError("No se ha podido conectar con ninuma-agente.") from e
 
 
-async def inventario_confirmar(escaneo_id: str) -> dict:
-    return await _post("/api/ninumapp/inventario/confirmar", {"id": escaneo_id})
+async def inventario_confirmar(
+    escaneo_id: str, categoria: str | None = None, base_imponible: float | None = None,
+    iva_importe: float | None = None, iva_porcentaje: float | None = None,
+) -> dict:
+    cuerpo: dict = {"id": escaneo_id}
+    if categoria is not None:
+        cuerpo["categoria"] = categoria
+    if base_imponible is not None:
+        cuerpo["base_imponible"] = base_imponible
+    if iva_importe is not None:
+        cuerpo["iva_importe"] = iva_importe
+    if iva_porcentaje is not None:
+        cuerpo["iva_porcentaje"] = iva_porcentaje
+    return await _post("/api/ninumapp/inventario/confirmar", cuerpo)
 
 
 async def inventario_descartar(escaneo_id: str) -> None:
@@ -342,6 +354,27 @@ async def inventario_stock_actual() -> tuple[list[dict], bool]:
 async def inventario_movimientos_recientes() -> tuple[list[dict], bool]:
     datos = await _get("/api/ninumapp/inventario/movimientos-recientes")
     return (datos, True) if datos is not None else ([], False)
+
+
+async def iva_trimestre(anio: int, trimestre: int) -> dict | None:
+    return await _get_q("/api/ninumapp/iva-trimestre", {"anio": anio, "trimestre": trimestre})
+
+
+async def inventario_tickets_periodo(desde: str, hasta: str) -> tuple[bytes, str] | None:
+    if not _configurada():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=30) as cliente:
+            resp = await cliente.get(
+                f"{settings.panel_agente_url.rstrip('/')}/api/ninumapp/inventario/tickets-periodo",
+                params={"desde": desde, "hasta": hasta},
+                headers={"X-Ninumapp-Secret": settings.ninumapp_api_secret},
+            )
+            if resp.status_code != 200:
+                return None
+            return resp.content, resp.headers.get("content-type", "application/zip")
+    except httpx.HTTPError:
+        return None
 
 
 # ---------------------------------------------------------------------------
