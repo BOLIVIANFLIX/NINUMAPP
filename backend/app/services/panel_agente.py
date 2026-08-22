@@ -173,6 +173,10 @@ async def poner_referencia_albaran(sesion: str, referencia: str) -> None:
     await _post("/api/ninumapp/albaran/referencia", {"sesion": sesion, "referencia": referencia})
 
 
+async def poner_fecha_entrega_albaran(sesion: str, fecha_entrega: str | None) -> None:
+    await _post("/api/ninumapp/albaran/fecha-entrega", {"sesion": sesion, "fecha_entrega": fecha_entrega})
+
+
 async def previsualizar_albaran(sesion: str) -> dict:
     datos = await _get(f"/api/ninumapp/albaran/previsualizar?sesion={sesion}")
     if datos is None:

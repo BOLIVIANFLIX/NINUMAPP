@@ -138,6 +138,18 @@ async def poner_referencia(body: ReferenciaBody, usuario: Usuario = Depends(usua
     return {"ok": True}
 
 
+class FechaEntregaBody(BaseModel):
+    sesion: str
+    fecha_entrega: str | None = None
+
+
+@router.post("/albaran/fecha-entrega")
+@_manejar_error
+async def poner_fecha_entrega(body: FechaEntregaBody, usuario: Usuario = Depends(usuario_actual)):
+    await panel_agente.poner_fecha_entrega_albaran(body.sesion, body.fecha_entrega)
+    return {"ok": True}
+
+
 @router.get("/albaran/previsualizar")
 @_manejar_error
 async def previsualizar_albaran(sesion: str, usuario: Usuario = Depends(usuario_actual)):

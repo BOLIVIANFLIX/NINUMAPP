@@ -26,6 +26,7 @@ import {
   mensajeError,
   obtenerClientesParaAlbaran,
   obtenerEstadoAlbaran,
+  ponerFechaEntregaAlbaran,
   ponerReferenciaAlbaran,
   previsualizarAlbaran,
   quitarLineaAlbaran,
@@ -56,6 +57,7 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
   const [precioTexto, setPrecioTexto] = useState('');
   const [pideProecio, setPideProecio] = useState(false);
   const [referenciaTexto, setReferenciaTexto] = useState('');
+  const [fechaEntregaTexto, setFechaEntregaTexto] = useState('');
   const [numeroManual, setNumeroManual] = useState('');
   const [usarNumeroManual, setUsarNumeroManual] = useState(false);
 
@@ -197,6 +199,7 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
     setError(null);
     try {
       if (referenciaTexto.trim()) await ponerReferenciaAlbaran(sesion, referenciaTexto.trim());
+      if (fechaEntregaTexto.trim()) await ponerFechaEntregaAlbaran(sesion, fechaEntregaTexto.trim());
       setPrevisualizacion(await previsualizarAlbaran(sesion));
       setPaso('previsualizar');
     } catch (err) {
@@ -352,6 +355,10 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
             <>
               <SectionLabel>Referencia del pedido (Grand Folies)</SectionLabel>
               <Campo etiqueta="Referencia" valor={referenciaTexto} onCambiar={setReferenciaTexto} />
+              <Campo etiqueta="Fecha de entrega (YYYY-MM-DD)" valor={fechaEntregaTexto} onCambiar={setFechaEntregaTexto} />
+              <ThemedText type="small" themeColor="textSecondary" style={styles.notaFechaEntrega}>
+                Se usa para calcular la caducidad del lote (entrega + 7 días). Si la dejas en blanco, se calcula desde hoy.
+              </ThemedText>
               <View style={styles.botonesFila}>
                 <BotonPrimario texto="Continuar" onPress={confirmarReferencia} cargando={cargando} />
               </View>
@@ -495,6 +502,7 @@ const styles = StyleSheet.create({
   radioCirculo: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioRelleno: { width: 10, height: 10, borderRadius: 5 },
   botonesFila: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.three },
+  notaFechaEntrega: { lineHeight: 18, marginTop: -Spacing.one },
   botonSecundario: { alignItems: 'center', paddingVertical: Spacing.three },
   campo: { gap: Spacing.one, marginTop: Spacing.two },
   input: { borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three, fontSize: 16 },

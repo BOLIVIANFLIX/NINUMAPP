@@ -500,6 +500,7 @@ export interface EstadoAlbaran {
   catalogo: CatalogoItem[];
   precio_libre: boolean;
   referencia_pedido: string | null;
+  fecha_entrega: string | null;
   es_grand_folies: boolean;
 }
 
@@ -531,6 +532,10 @@ export async function quitarLineaAlbaran(sesion: string, indice: number): Promis
 
 export async function ponerReferenciaAlbaran(sesion: string, referencia: string): Promise<void> {
   await api.post('/api/pedidos-b2b/albaran/referencia', { sesion, referencia });
+}
+
+export async function ponerFechaEntregaAlbaran(sesion: string, fechaEntrega: string | null): Promise<void> {
+  await api.post('/api/pedidos-b2b/albaran/fecha-entrega', { sesion, fecha_entrega: fechaEntrega });
 }
 
 export interface FaltanteMateriaPrima {
