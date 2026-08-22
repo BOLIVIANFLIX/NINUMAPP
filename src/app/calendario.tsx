@@ -142,15 +142,17 @@ export default function CalendarioScreen() {
                     { borderColor: theme.separator },
                     esSeleccionado && { backgroundColor: theme.accentSoft },
                   ]}>
-                  <ThemedText
-                    type="small"
-                    style={[
-                      styles.numeroDia,
-                      !delMes && { color: theme.textSecondary, opacity: 0.4 },
-                      esHoy && { color: theme.accent, fontWeight: '800' },
-                    ]}>
-                    {dia.getDate()}
-                  </ThemedText>
+                  <View style={[styles.circuloNumero, esHoy && { backgroundColor: theme.accent }]}>
+                    <ThemedText
+                      type="small"
+                      style={[
+                        styles.numeroDia,
+                        !delMes && { color: theme.textSecondary, opacity: 0.4 },
+                        esHoy && { color: '#fff', fontWeight: '800' },
+                      ]}>
+                      {dia.getDate()}
+                    </ThemedText>
+                  </View>
                   <View style={styles.etiquetasDia}>
                     {visibles.map((ev) => (
                       <View key={ev.id} style={[styles.etiquetaEvento, { backgroundColor: ev.color || theme.info }]}>
@@ -215,6 +217,7 @@ const styles = StyleSheet.create({
   celdaCabecera: { flex: 1, textAlign: 'center' },
   rejilla: { flexDirection: 'row', flexWrap: 'wrap' },
   celdaDia: { width: `${100 / 7}%`, minHeight: 62, paddingVertical: 3, paddingHorizontal: 2, borderWidth: StyleSheet.hairlineWidth, gap: 2 },
+  circuloNumero: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   numeroDia: { fontSize: 11, textAlign: 'center' },
   etiquetasDia: { gap: 1.5 },
   etiquetaEvento: { borderRadius: 3, paddingHorizontal: 2, paddingVertical: 1 },

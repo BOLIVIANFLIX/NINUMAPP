@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AsuntoEmail, AsuntoPedidoWeb } from '@/components/avisos-pendientes';
@@ -9,7 +9,6 @@ import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
-import { UsuariosPanel } from '@/components/usuarios-panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -21,33 +20,33 @@ import {
   type PedidoWebPendiente,
 } from '@/lib/api';
 
-type Vista = 'avisos' | 'usuarios';
-
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 // Réplica de panel._seccion_avisos: seguridad, alarma de Casa (verde/rojo), "hoy
 // toca preparar/entregar" destacado, Grand Folies detectados, correo sin resolver,
-// pedidos web pendientes, preguntas de margen, Gestionar usuarios -- mismo orden.
+// pedidos web pendientes, preguntas de margen -- mismo orden. "Gestionar usuarios"
+// se quitó de aquí a petición de Ramiro (ya está en Inicio -> Gestión).
 export default function AvisosScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const navigation = useNavigation();
   const [pedidoGF, setPedidoGF] = useState<PedidoGrandFolies | null>(null);
   const [asuntoEmail, setAsuntoEmail] = useState<EncargoPendiente | null>(null);
   const [asuntoPedidoWeb, setAsuntoPedidoWeb] = useState<PedidoWebPendiente | null>(null);
-  const [vista, setVista] = useState<Vista>('avisos');
 
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        setVista('avisos');
-        setPedidoGF(null);
-        setAsuntoEmail(null);
-        setAsuntoPedidoWeb(null);
-      };
-    }, []),
-  );
+  function volverAlPrincipal() {
+    setPedidoGF(null);
+    setAsuntoEmail(null);
+    setAsuntoPedidoWeb(null);
+  }
+
+  useFocusEffect(useCallback(() => volverAlPrincipal, []));
+
+  useEffect(() => {
+    return navigation.addListener('tabPress' as never, volverAlPrincipal);
+  }, [navigation]);
 
   const avisos = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const grandFolies = useQuery({ queryKey: ['avisos', 'grand-folies'], queryFn: obtenerGrandFoliesPendientes });
@@ -68,8 +67,6 @@ export default function AvisosScreen() {
       />
     );
   }
-
-  if (vista === 'usuarios') return <UsuariosPanel onVolver={() => setVista('avisos')} />;
 
   const hoy = hoyISO();
   const entregasHoy = (grandFolies.data?.pedidos ?? []).filter((p) => p.fecha_entrega === hoy);
@@ -203,12 +200,6 @@ export default function AvisosScreen() {
               </ListCard>
             </>
           )}
-
-          <Pressable onPress={() => setVista('usuarios')} style={styles.enlaceUsuarios}>
-            <ThemedText type="link" style={{ color: theme.accent }}>
-              👤 Gestionar usuarios ›
-            </ThemedText>
-          </Pressable>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>

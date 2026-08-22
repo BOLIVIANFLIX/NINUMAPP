@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useFocusEffect, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,14 +28,20 @@ type Sub = 'Sensores' | 'Inventario';
 
 export default function ObradorScreen() {
   const theme = useTheme();
+  const navigation = useNavigation();
   const [vista, setVista] = useState<Vista>('obrador');
   const [sub, setSub] = useState<Sub>('Sensores');
 
-  useFocusEffect(
-    useCallback(() => {
-      return () => setVista('obrador');
-    }, []),
-  );
+  function volverAlPrincipal() {
+    setVista('obrador');
+    setSub('Sensores');
+  }
+
+  useFocusEffect(useCallback(() => volverAlPrincipal, []));
+
+  useEffect(() => {
+    return navigation.addListener('tabPress' as never, volverAlPrincipal);
+  }, [navigation]);
 
   const recientes = useQuery({ queryKey: ['obrador', 'alarmas-recientes'], queryFn: obtenerAlarmasRecientes });
   const sensores = useQuery({ queryKey: ['obrador', 'sensores'], queryFn: obtenerSensores, refetchInterval: 30_000 });

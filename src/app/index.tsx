@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlbaranWizard } from '@/components/albaran-wizard';
 import { AnalisisFinanciero } from '@/components/analisis-financiero';
+import { ElegirTipoDocumento } from '@/components/elegir-tipo-documento';
 import { EscanerQREntrada } from '@/components/escaner-qr-entrada';
 import { FacturasPendientesCobro } from '@/components/facturas-pendientes-cobro';
 import { IngresosGastos } from '@/components/ingresos-gastos';
@@ -24,7 +25,7 @@ const fechaHoy = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numer
 const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 const fechaLargaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-type Vista = 'inicio' | 'nuevo-albaran' | 'analisis' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr';
+type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr';
 
 // Réplica de panel._seccion_inicio: mismas 3 tarjetas, próxima entrega, acumulado
 // sin facturar, accesos rápidos reales (generar albarán/análisis/gastos) y Gestión
@@ -33,6 +34,7 @@ export default function InicioScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { cerrarSesion } = useAuth();
+  const navigation = useNavigation();
   const [vista, setVista] = useState<Vista>('inicio');
 
   // Al salir de la pestaña siempre se vuelve a la pantalla principal -- nunca se
@@ -44,6 +46,13 @@ export default function InicioScreen() {
     }, []),
   );
 
+  // Volver a tocar el icono de esta misma pestaña (ya activa) también debe volver a
+  // la pantalla principal -- useFocusEffect no lo cubre porque no hay blur/focus, es
+  // la misma pestaña ya en primer plano.
+  useEffect(() => {
+    return navigation.addListener('tabPress' as never, () => setVista('inicio'));
+  }, [navigation]);
+
   const { data: resumen, error, isFetching, refetch } = useQuery({
     queryKey: ['resumen'],
     queryFn: obtenerResumen,
@@ -53,6 +62,9 @@ export default function InicioScreen() {
   const hoy = fechaHoy.format(new Date());
   const f = resumen?.financiero;
 
+  if (vista === 'elegir-documento') {
+    return <ElegirTipoDocumento onAlbaran={() => setVista('nuevo-albaran')} onVolver={() => setVista('inicio')} />;
+  }
   if (vista === 'nuevo-albaran') {
     return <AlbaranWizard onVolver={() => setVista('inicio')} />;
   }
@@ -155,12 +167,12 @@ export default function InicioScreen() {
 
           <SectionLabel>Accesos rápidos</SectionLabel>
           <View style={styles.quickRow}>
-            <Pressable onPress={() => setVista('nuevo-albaran')} style={[styles.quick, { backgroundColor: theme.backgroundElement }]}>
+            <Pressable onPress={() => setVista('elegir-documento')} style={[styles.quick, { backgroundColor: theme.backgroundElement }]}>
               <View style={[styles.quickIco, { backgroundColor: theme.accentSoft }]}>
                 <ThemedText style={{ fontSize: 17 }}>➕</ThemedText>
               </View>
               <ThemedText type="small" style={styles.quickTxt}>
-                Generar albarán
+                Generar documentos
               </ThemedText>
             </Pressable>
             <Pressable onPress={() => setVista('analisis')} style={[styles.quick, { backgroundColor: theme.backgroundElement }]}>

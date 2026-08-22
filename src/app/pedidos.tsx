@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useFocusEffect, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlbaranWizard } from '@/components/albaran-wizard';
 import { Clientes } from '@/components/clientes';
+import { ElegirTipoDocumento } from '@/components/elegir-tipo-documento';
 import { ClienteProfesionalDetalle } from '@/components/cliente-profesional';
 import { DocumentosTodos } from '@/components/documentos-todos';
 import { PedidoPropioFormulario } from '@/components/pedido-propio-form';
@@ -49,21 +50,30 @@ type Vista =
   | { tipo: 'documentos' }
   | { tipo: 'documento'; numero: string }
   | { tipo: 'form-pedido'; pedido: PedidoPropio | null }
+  | { tipo: 'elegir-documento' }
   | { tipo: 'nuevo-albaran' };
 type Sub = 'Profesionales' | 'Particulares';
 
 export default function PedidosScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const navigation = useNavigation();
   const [vista, setVista] = useState<Vista>({ tipo: 'principal' });
   const [sub, setSub] = useState<Sub>('Profesionales');
   const [cerrandoMes, setCerrandoMes] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      return () => setVista({ tipo: 'principal' });
-    }, []),
-  );
+  function volverAlPrincipal() {
+    setVista({ tipo: 'principal' });
+    setSub('Profesionales');
+  }
+
+  useFocusEffect(useCallback(() => volverAlPrincipal, []));
+
+  // Volver a tocar el icono de Pedidos ya activo también vuelve a la pantalla
+  // principal (useFocusEffect no cubre este caso, no hay blur/focus de por medio).
+  useEffect(() => {
+    return navigation.addListener('tabPress' as never, volverAlPrincipal);
+  }, [navigation]);
 
   const profesionalesQuery = useQuery({ queryKey: ['clientes-profesionales'], queryFn: obtenerClientesProfesionales });
   const acumuladoItemizadoQuery = useQuery({ queryKey: ['acumulado-mensual-itemizado'], queryFn: obtenerAcumuladoMensualItemizado, enabled: sub === 'Profesionales' });
@@ -87,6 +97,14 @@ export default function PedidosScreen() {
   }
   if (vista.tipo === 'form-pedido') {
     return <PedidoPropioFormulario pedido={vista.pedido} onVolver={() => setVista({ tipo: 'principal' })} />;
+  }
+  if (vista.tipo === 'elegir-documento') {
+    return (
+      <ElegirTipoDocumento
+        onAlbaran={() => setVista({ tipo: 'nuevo-albaran' })}
+        onVolver={() => setVista({ tipo: 'principal' })}
+      />
+    );
   }
   if (vista.tipo === 'nuevo-albaran') return <AlbaranWizard onVolver={volverYRefrescar} />;
 
@@ -139,7 +157,7 @@ export default function PedidosScreen() {
           {sub === 'Profesionales' ? (
             <>
               <View style={styles.botonAlbaran}>
-                <BotonPrimario texto="＋ Generar albarán" onPress={() => setVista({ tipo: 'nuevo-albaran' })} />
+                <BotonPrimario texto="＋ Generar documentos" onPress={() => setVista({ tipo: 'elegir-documento' })} />
               </View>
 
               <SectionLabel>Clientes profesionales</SectionLabel>
