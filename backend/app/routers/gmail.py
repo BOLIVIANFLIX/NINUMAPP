@@ -3,15 +3,16 @@ from fastapi import APIRouter, Depends
 from app.models import Usuario
 from app.routers.auth import usuario_actual
 from app.services import gmail as gmail_service
+from app.services import google_auth
 
 router = APIRouter(prefix="/api/gmail", tags=["gmail"])
 
 
 @router.get("/auth-url")
 async def auth_url(usuario: Usuario = Depends(usuario_actual)):
-    """Solo para la autorización inicial única -- ver services/gmail.py. No forma
-    parte del uso normal de la app."""
-    return {"url": gmail_service.construir_url_autorizacion()}
+    """Solo para la autorización inicial única -- ver services/google_auth.py
+    (cubre Gmail y Calendar en un mismo permiso). No forma parte del uso normal de la app."""
+    return {"url": google_auth.construir_url_autorizacion()}
 
 
 @router.get("/callback")

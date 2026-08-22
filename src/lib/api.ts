@@ -603,6 +603,28 @@ export async function cambiarPasswordUsuarioPanel(usuario: string, password: str
   return resp.data;
 }
 
+// --- Calendario ---------------------------------------------------------------
+// Lectura vía la API de Google Calendar (no WebView/embed) -- privado de verdad,
+// nunca depende de que el calendario sea público. Mismo permiso de Google que Gmail.
+
+export interface EventoCalendario {
+  id: string;
+  titulo: string;
+  inicio: string;
+  fin: string;
+  todo_el_dia: boolean;
+  color: string | null;
+}
+
+export interface RespuestaCalendario extends RespuestaConAviso<EventoCalendario> {
+  eventos: EventoCalendario[];
+}
+
+export async function obtenerEventosCalendario(desde: string, hasta: string): Promise<RespuestaCalendario> {
+  const resp = await api.get('/api/calendario/eventos', { params: { desde, hasta } });
+  return resp.data;
+}
+
 export function mensajeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     return (err.response?.data as { detail?: string } | undefined)?.detail ?? 'No se ha podido conectar con el servidor.';

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
     gmail_refresh_token: str = ""
+    google_calendar_id: str = ""
 
     # Conexión de solo lectura a la Supabase de la web (proyecto NINUMAWEB/WBD,
     # fuera de este repo) -- rol dedicado "ninumapp_lectura" (ver
