@@ -4,6 +4,7 @@ endpoints /api/ninumapp/* (ver ninuma-agente/api_ninumapp.py). NINUMAPP nunca re
 esa lógica de facturación: solo llama a las mismas funciones que ya usa el panel, así el
 comportamiento (numeración, descuento de stock, contabilidad, documento) es idéntico."""
 
+import urllib.parse
 from typing import Any, TypedDict
 
 import httpx
@@ -70,6 +71,11 @@ async def _get(ruta: str) -> dict | list | None:
         return None
 
 
+async def _get_q(ruta: str, params: dict[str, Any]) -> dict | list | None:
+    limpio = {k: v for k, v in params.items() if v is not None}
+    return await _get(f"{ruta}?{urllib.parse.urlencode(limpio)}")
+
+
 async def _post(ruta: str, cuerpo: dict[str, Any]) -> dict | None:
     """A diferencia de _get, no traga errores en silencio devolviendo None -- quien
     escribe (generar un albarán, cerrar un mes) necesita saber si falló de verdad,
@@ -95,6 +101,11 @@ async def _post(ruta: str, cuerpo: dict[str, Any]) -> dict | None:
 async def resumen_financiero() -> tuple[ResumenFinanciero | None, bool]:
     datos = await _get("/api/ninumapp/resumen-financiero")
     return (datos, True) if datos is not None else (None, False)
+
+
+async def acumulado_mensual_itemizado() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/acumulado-mensual-itemizado")
+    return (datos, True) if datos is not None else ([], False)
 
 
 async def clientes_profesionales() -> tuple[list[ClienteProfesional], bool]:
@@ -248,3 +259,257 @@ async def cerrar_sesion_usuario_panel(usuario: str) -> None:
 
 async def cambiar_password_usuario_panel(usuario: str, password: str) -> dict:
     return await _post("/api/ninumapp/usuarios/cambiar-password", {"usuario": usuario, "password": password})
+
+
+# ---------------------------------------------------------------------------
+# Obrador -- alarmas recientes (historial real de sensores, no automatizaciones)
+# ---------------------------------------------------------------------------
+
+
+async def alarmas_recientes() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/alarmas-recientes")
+    return (datos, True) if datos is not None else ([], False)
+
+
+# ---------------------------------------------------------------------------
+# Inventario -- un solo botón de escaneo, la IA decide sola ticket_compra vs.
+# albaran_propio (ver inventario.escanear en ninuma-agente). Nunca reimplementado
+# aquí: si se hiciera aparte, lo escaneado no llegaría a la contabilidad real.
+# ---------------------------------------------------------------------------
+
+
+async def inventario_escanear(imagen: bytes, content_type: str) -> dict:
+    if not _configurada():
+        raise PanelAgenteError("ninuma-agente todavía no está conectado en NINUMAPP.")
+    try:
+        async with httpx.AsyncClient(timeout=45) as cliente:
+            resp = await cliente.post(
+                f"{settings.panel_agente_url.rstrip('/')}/api/ninumapp/inventario/escanear",
+                headers={"X-Ninumapp-Secret": settings.ninumapp_api_secret, "Content-Type": content_type},
+                content=imagen,
+            )
+            datos = resp.json()
+            if resp.status_code >= 400:
+                raise PanelAgenteError(datos.get("detail", "No se ha podido leer la foto."))
+            return datos
+    except httpx.HTTPError as e:
+        raise PanelAgenteError("No se ha podido conectar con ninuma-agente.") from e
+
+
+async def inventario_confirmar(escaneo_id: str) -> dict:
+    return await _post("/api/ninumapp/inventario/confirmar", {"id": escaneo_id})
+
+
+async def inventario_descartar(escaneo_id: str) -> None:
+    await _post("/api/ninumapp/inventario/descartar", {"id": escaneo_id})
+
+
+async def inventario_stock_actual() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/inventario/stock-actual")
+    return (datos, True) if datos is not None else ([], False)
+
+
+async def inventario_movimientos_recientes() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/inventario/movimientos-recientes")
+    return (datos, True) if datos is not None else ([], False)
+
+
+# ---------------------------------------------------------------------------
+# Avisos -- correo sin resolver + pedidos de la web pendientes de revisar
+# ---------------------------------------------------------------------------
+
+
+async def avisos_pendientes() -> tuple[dict, bool]:
+    datos = await _get("/api/ninumapp/avisos-pendientes")
+    return (datos, True) if datos is not None else ({"encargos": [], "pedidos_web": []}, False)
+
+
+# ---------------------------------------------------------------------------
+# Análisis financiero
+# ---------------------------------------------------------------------------
+
+
+async def analisis_resumen(p: str, desde: str | None = None, hasta: str | None = None) -> dict:
+    datos = await _get_q("/api/ninumapp/analisis/resumen", {"p": p, "desde": desde, "hasta": hasta})
+    if datos is None:
+        raise PanelAgenteError("No se ha podido conectar con ninuma-agente.")
+    return datos
+
+
+async def analisis_productos(p: str, desde: str | None = None, hasta: str | None = None) -> list[dict]:
+    datos = await _get_q("/api/ninumapp/analisis/productos", {"p": p, "desde": desde, "hasta": hasta})
+    return datos or []
+
+
+async def analisis_recetas() -> dict:
+    datos = await _get("/api/ninumapp/analisis/recetas")
+    if datos is None:
+        raise PanelAgenteError("No se ha podido conectar con ninuma-agente.")
+    return datos
+
+
+async def analisis_precios() -> list[dict]:
+    datos = await _get("/api/ninumapp/analisis/precios")
+    return datos or []
+
+
+async def guardar_config_costes(precio_hora: float, horas_mes: float) -> dict:
+    return await _post("/api/ninumapp/analisis/costes/guardar-config", {"precio_hora": precio_hora, "horas_mes": horas_mes})
+
+
+async def guardar_tiempo_receta(recipe_id: int, minutos: int, precio_hora: float) -> dict:
+    return await _post(
+        "/api/ninumapp/analisis/costes/guardar-tiempo",
+        {"recipe_id": recipe_id, "minutos": minutos, "precio_hora": precio_hora},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Ingresos y gastos
+# ---------------------------------------------------------------------------
+
+
+async def ingresos_del_mes(mes: str | None = None) -> dict:
+    datos = await _get_q("/api/ninumapp/ingresos", {"mes": mes})
+    if datos is None:
+        raise PanelAgenteError("No se ha podido conectar con ninuma-agente.")
+    return datos
+
+
+async def crear_gasto(
+    categoria: str, importe: float, fecha: str, descripcion: str | None = None, lugar_compra: str | None = None,
+    producto: str | None = None, recurrente: bool = False, pagado: bool = True,
+) -> dict:
+    return await _post(
+        "/api/ninumapp/ingresos/gastos/crear",
+        {
+            "categoria": categoria, "importe": importe, "fecha": fecha, "descripcion": descripcion,
+            "lugar_compra": lugar_compra, "producto": producto, "recurrente": recurrente, "pagado": pagado,
+        },
+    )
+
+
+async def eliminar_gasto(id_: int) -> dict:
+    return await _post("/api/ninumapp/ingresos/gastos/eliminar", {"id": id_})
+
+
+async def marcar_gasto_pagado(id_: int) -> dict:
+    return await _post("/api/ninumapp/ingresos/gastos/marcar-pagado", {"id": id_})
+
+
+# ---------------------------------------------------------------------------
+# Documentos históricos + ficha de cliente
+# ---------------------------------------------------------------------------
+
+
+async def todos_los_documentos() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/documentos")
+    return (datos, True) if datos is not None else ([], False)
+
+
+async def documento_detalle(numero: str) -> dict:
+    datos = await _get_q("/api/ninumapp/documento", {"numero": numero})
+    if datos is None:
+        raise PanelAgenteError("No se ha podido conectar con ninuma-agente.")
+    return datos
+
+
+async def documento_archivo(numero: str, tipo: str) -> tuple[bytes, str] | None:
+    if not _configurada():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=20) as cliente:
+            resp = await cliente.get(
+                f"{settings.panel_agente_url.rstrip('/')}/api/ninumapp/documento/archivo",
+                params={"numero": numero, "tipo": tipo},
+                headers={"X-Ninumapp-Secret": settings.ninumapp_api_secret},
+            )
+            if resp.status_code != 200:
+                return None
+            return resp.content, resp.headers.get("content-type", "application/octet-stream")
+    except httpx.HTTPError:
+        return None
+
+
+async def cliente_detalle(nombre: str) -> dict:
+    datos = await _get_q("/api/ninumapp/cliente", {"nombre": nombre})
+    if datos is None:
+        raise PanelAgenteError("No se ha podido conectar con ninuma-agente.")
+    return datos
+
+
+async def cliente_crear(nombre: str, direccion: str, cif: str, tipo_facturacion: str) -> dict:
+    return await _post(
+        "/api/ninumapp/cliente/crear",
+        {"nombre": nombre, "direccion": direccion, "cif": cif, "tipo_facturacion": tipo_facturacion},
+    )
+
+
+async def cliente_editar(nombre: str, direccion: str, cif: str, nombre_documento: str | None, tipo_facturacion: str) -> dict:
+    return await _post(
+        "/api/ninumapp/cliente/editar",
+        {"nombre": nombre, "direccion": direccion, "cif": cif, "nombre_documento": nombre_documento, "tipo_facturacion": tipo_facturacion},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Catálogo de precios por cliente -- cada profesional tiene sus propios productos
+# con un precio propio (puede repetirse el mismo producto en otro cliente con un
+# precio distinto). Es el precio de referencia que se ofrece primero en el
+# asistente de albarán (ver albaran.clientes_para_app/anadir_linea_app).
+# ---------------------------------------------------------------------------
+
+
+async def catalogo_cliente(cliente: str) -> list[dict]:
+    datos = await _get_q("/api/ninumapp/catalogo-cliente", {"cliente": cliente})
+    return datos or []
+
+
+async def catalogo_crear(cliente: str, descripcion: str, precio: float, codigo: str | None = None) -> dict:
+    return await _post("/api/ninumapp/catalogo-cliente/crear", {"cliente": cliente, "descripcion": descripcion, "precio": precio, "codigo": codigo})
+
+
+async def catalogo_editar(id_: int, descripcion: str, precio: float, codigo: str | None = None) -> dict:
+    return await _post("/api/ninumapp/catalogo-cliente/editar", {"id": id_, "descripcion": descripcion, "precio": precio, "codigo": codigo})
+
+
+async def catalogo_eliminar(id_: int) -> dict:
+    return await _post("/api/ninumapp/catalogo-cliente/eliminar", {"id": id_})
+
+
+# ---------------------------------------------------------------------------
+# Precio público de la tienda online -- override editable sin tocar el contenido
+# markdown de la web (ver WBD/src/lib/preciosOverride.ts).
+# ---------------------------------------------------------------------------
+
+
+async def precios_tienda_online() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/precios-tienda-online")
+    if datos is None:
+        return [], False
+    return datos["precios"], datos["conectado"]
+
+
+async def precio_tienda_guardar(referencia: str, precio: float) -> dict:
+    return await _post("/api/ninumapp/precios-tienda-online/guardar", {"referencia": referencia, "precio": precio})
+
+
+async def precio_tienda_eliminar(referencia: str) -> dict:
+    return await _post("/api/ninumapp/precios-tienda-online/eliminar", {"referencia": referencia})
+
+
+# ---------------------------------------------------------------------------
+# Avisos -- convertir correo en pedido, confirmar/mover pedido web
+# ---------------------------------------------------------------------------
+
+
+async def email_asignar_dia(id_: int, fecha: str, descripcion: str) -> dict:
+    return await _post("/api/ninumapp/avisos/email/asignar-dia", {"id": id_, "fecha": fecha, "descripcion": descripcion})
+
+
+async def pedido_web_confirmar(locator: str) -> dict:
+    return await _post("/api/ninumapp/avisos/pedido-web/confirmar", {"locator": locator})
+
+
+async def pedido_web_mover(locator: str, fecha: str) -> dict:
+    return await _post("/api/ninumapp/avisos/pedido-web/mover", {"locator": locator, "fecha": fecha})

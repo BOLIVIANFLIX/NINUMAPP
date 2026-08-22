@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlbaranWizard } from '@/components/albaran-wizard';
 import { Clientes } from '@/components/clientes';
+import { ClienteProfesionalDetalle } from '@/components/cliente-profesional';
+import { DocumentosTodos } from '@/components/documentos-todos';
 import { PedidoPropioFormulario } from '@/components/pedido-propio-form';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -15,6 +17,7 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   cerrarMes,
   mensajeError,
+  obtenerAcumuladoMensualItemizado,
   obtenerClientesProfesionales,
   obtenerPedidos,
   obtenerPedidosPropios,
@@ -22,6 +25,7 @@ import {
   type Pedido,
   type PedidoPropio,
 } from '@/lib/api';
+import { DocumentoDetalle } from '@/components/documento-detalle';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
@@ -37,7 +41,14 @@ const ETIQUETAS_ESTADO_PROPIO: Record<string, { texto: string; color: PillColor 
   cobrado: { texto: 'Cobrado', color: 'success' },
 };
 
-type Vista = { tipo: 'principal' } | { tipo: 'clientes' } | { tipo: 'form-pedido'; pedido: PedidoPropio | null } | { tipo: 'nuevo-albaran' };
+type Vista =
+  | { tipo: 'principal' }
+  | { tipo: 'clientes' }
+  | { tipo: 'cliente-profesional'; nombre: string }
+  | { tipo: 'documentos' }
+  | { tipo: 'documento'; numero: string }
+  | { tipo: 'form-pedido'; pedido: PedidoPropio | null }
+  | { tipo: 'nuevo-albaran' };
 type Sub = 'Profesionales' | 'Particulares';
 
 export default function PedidosScreen() {
@@ -48,6 +59,7 @@ export default function PedidosScreen() {
   const [cerrandoMes, setCerrandoMes] = useState(false);
 
   const profesionalesQuery = useQuery({ queryKey: ['clientes-profesionales'], queryFn: obtenerClientesProfesionales });
+  const acumuladoItemizadoQuery = useQuery({ queryKey: ['acumulado-mensual-itemizado'], queryFn: obtenerAcumuladoMensualItemizado, enabled: sub === 'Profesionales' });
   const resumenQuery = useQuery({ queryKey: ['resumen'], queryFn: obtenerResumen });
   const webQuery = useQuery({ queryKey: ['pedidos'], queryFn: obtenerPedidos });
   const propiosQuery = useQuery({ queryKey: ['pedidos-propios'], queryFn: obtenerPedidosPropios });
@@ -59,6 +71,13 @@ export default function PedidosScreen() {
   }
 
   if (vista.tipo === 'clientes') return <Clientes onVolver={() => setVista({ tipo: 'principal' })} />;
+  if (vista.tipo === 'cliente-profesional') {
+    return <ClienteProfesionalDetalle nombre={vista.nombre} onVolver={() => setVista({ tipo: 'principal' })} />;
+  }
+  if (vista.tipo === 'documentos') return <DocumentosTodos onVolver={() => setVista({ tipo: 'principal' })} />;
+  if (vista.tipo === 'documento') {
+    return <DocumentoDetalle numero={vista.numero} etiquetaVolver="Pedidos" onVolver={() => setVista({ tipo: 'principal' })} />;
+  }
   if (vista.tipo === 'form-pedido') {
     return <PedidoPropioFormulario pedido={vista.pedido} onVolver={() => setVista({ tipo: 'principal' })} />;
   }
@@ -134,6 +153,7 @@ export default function PedidosScreen() {
                     <ListRow
                       key={c.nombre}
                       last={i === profesionalesQuery.data!.clientes.length - 1}
+                      onPress={() => setVista({ tipo: 'cliente-profesional', nombre: c.nombre })}
                       left={<Pill color={c.tipo_facturacion === 'mensual' ? 'info' : 'warning'}>{c.tipo_facturacion === 'mensual' ? 'Mensual' : 'Directa'}</Pill>}
                       title={c.nombre}
                       subtitle={c.albaranes_abiertos === 0 ? 'Sin albaranes abiertos' : `${c.albaranes_abiertos} albarán(es) abierto(s)`}
@@ -142,9 +162,29 @@ export default function PedidosScreen() {
                 </ListCard>
               )}
 
+              <Pressable onPress={() => setVista({ tipo: 'documentos' })} style={styles.enlaceDocumentos}>
+                <ThemedText type="link" style={{ color: theme.accent }}>
+                  📄 Todos los documentos ›
+                </ThemedText>
+              </Pressable>
+
               {acumuladoMensual && acumuladoMensual.albaranes > 0 && (
                 <>
                   <SectionLabel>Grand Folies · resumen del mes</SectionLabel>
+                  {acumuladoItemizadoQuery.data?.grupos.map((g) => (
+                    <ListCard key={g.cliente} style={styles.tarjetaGrupo}>
+                      {g.albaranes.map((a, i) => (
+                        <ListRow
+                          key={a.numero}
+                          last={i === g.albaranes.length - 1}
+                          onPress={() => setVista({ tipo: 'documento', numero: a.numero })}
+                          title={a.numero}
+                          subtitle={`${g.cliente} · ${fecha.format(new Date(a.creado_en))}`}
+                          right={<ThemedText type="smallBold">{eur.format(a.total)}</ThemedText>}
+                        />
+                      ))}
+                    </ListCard>
+                  ))}
                   <ListCard>
                     <ListRow
                       last
@@ -278,5 +318,7 @@ const styles = StyleSheet.create({
   nota: { marginTop: Spacing.two, marginBottom: Spacing.two, lineHeight: 18 },
   right: { alignItems: 'flex-end' },
   botonAlbaran: { marginTop: Spacing.three, marginBottom: Spacing.two },
+  enlaceDocumentos: { marginTop: Spacing.three },
+  tarjetaGrupo: { marginBottom: Spacing.two },
   botonCerrarMes: { marginTop: Spacing.two },
 });

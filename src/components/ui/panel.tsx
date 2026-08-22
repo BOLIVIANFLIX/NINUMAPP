@@ -61,6 +61,29 @@ export function ListRow({
   );
 }
 
+export function Ficha({ children, style }: ViewProps) {
+  const theme = useTheme();
+  return <View style={[styles.ficha, { backgroundColor: theme.backgroundElement }, style]}>{children}</View>;
+}
+
+export function FilaFicha({ etiqueta, valor, last }: { etiqueta: string; valor: React.ReactNode; last?: boolean }) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.filaFicha, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.separator }]}>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.filaFichaEtiqueta} numberOfLines={1}>
+        {etiqueta}
+      </ThemedText>
+      {typeof valor === 'string' ? (
+        <ThemedText type="smallBold" style={styles.filaFichaValor} numberOfLines={1}>
+          {valor}
+        </ThemedText>
+      ) : (
+        valor
+      )}
+    </View>
+  );
+}
+
 export type PillColor = 'accent' | 'success' | 'warning' | 'danger' | 'info';
 
 export function Pill({ children, color = 'accent' }: { children: string; color?: PillColor }) {
@@ -185,6 +208,10 @@ const styles = StyleSheet.create({
   listRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three - 3 },
   listRowMain: { flex: 1, minWidth: 0, gap: 1 },
   listRowSub: { marginTop: 1 },
+  ficha: { borderRadius: 16, paddingHorizontal: Spacing.three, paddingVertical: 2 },
+  filaFicha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two, paddingVertical: 10 },
+  filaFichaEtiqueta: { flexShrink: 1 },
+  filaFichaValor: { textAlign: 'right' },
   pill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, alignSelf: 'flex-start' },
   pillText: { fontSize: 11, fontWeight: '700', lineHeight: 14 },
   dot: { width: 9, height: 9, borderRadius: 5 },

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AsuntoEmail, AsuntoPedidoWeb } from '@/components/avisos-pendientes';
 import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -10,7 +11,16 @@ import { ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
 import { UsuariosPanel } from '@/components/usuarios-panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mensajeError, obtenerAvisos, obtenerCorreosPendientes, obtenerGrandFoliesPendientes, type PedidoGrandFolies } from '@/lib/api';
+import {
+  mensajeError,
+  obtenerAvisos,
+  obtenerAvisosPendientes,
+  obtenerCorreosPendientes,
+  obtenerGrandFoliesPendientes,
+  type EncargoPendiente,
+  type PedidoGrandFolies,
+  type PedidoWebPendiente,
+} from '@/lib/api';
 
 const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -20,11 +30,17 @@ export default function AvisosScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [pedidoGF, setPedidoGF] = useState<PedidoGrandFolies | null>(null);
+  const [asuntoEmail, setAsuntoEmail] = useState<EncargoPendiente | null>(null);
+  const [asuntoPedidoWeb, setAsuntoPedidoWeb] = useState<PedidoWebPendiente | null>(null);
   const [vista, setVista] = useState<Vista>('avisos');
 
   const solicitudes = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const correos = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes });
   const grandFolies = useQuery({ queryKey: ['avisos', 'grand-folies'], queryFn: obtenerGrandFoliesPendientes });
+  const pendientesAgente = useQuery({ queryKey: ['avisos-pendientes'], queryFn: obtenerAvisosPendientes });
+
+  if (asuntoEmail) return <AsuntoEmail encargo={asuntoEmail} onVolver={() => setAsuntoEmail(null)} />;
+  if (asuntoPedidoWeb) return <AsuntoPedidoWeb pedido={asuntoPedidoWeb} onVolver={() => setAsuntoPedidoWeb(null)} />;
 
   if (pedidoGF) {
     return (
@@ -109,6 +125,56 @@ export default function AvisosScreen() {
                 />
               ))}
             </ListCard>
+          )}
+
+          <SectionLabel>Correo sin resolver</SectionLabel>
+          {pendientesAgente.isLoading && <ActivityIndicator color={theme.accent} />}
+          {pendientesAgente.error && (
+            <ThemedText type="small" themeColor="danger">
+              {mensajeError(pendientesAgente.error)}
+            </ThemedText>
+          )}
+          {pendientesAgente.data?.aviso && (
+            <ThemedText type="small" themeColor="textSecondary">
+              ℹ️ {pendientesAgente.data.aviso}
+            </ThemedText>
+          )}
+          {pendientesAgente.data?.conectado && pendientesAgente.data.encargos.length === 0 && (
+            <ThemedText type="small" themeColor="textSecondary">
+              Sin contactos de correo pendientes.
+            </ThemedText>
+          )}
+          {!!pendientesAgente.data?.encargos.length && (
+            <ListCard>
+              {pendientesAgente.data.encargos.map((e, i) => (
+                <ListRow
+                  key={e.id}
+                  last={i === pendientesAgente.data!.encargos.length - 1}
+                  onPress={() => setAsuntoEmail(e)}
+                  left={<NotifIcono icono={e.urgente ? '⚠️' : '✉️'} color={e.urgente ? theme.danger : theme.info} bg={e.urgente ? theme.dangerSoft : theme.infoSoft} />}
+                  title={`${e.categoria} · ${e.cliente ?? 'sin nombre'}`}
+                  subtitle={e.resumen}
+                />
+              ))}
+            </ListCard>
+          )}
+
+          {!!pendientesAgente.data?.pedidos_web.length && (
+            <>
+              <SectionLabel>Pedidos de la web pendientes de revisar</SectionLabel>
+              <ListCard>
+                {pendientesAgente.data.pedidos_web.map((p, i) => (
+                  <ListRow
+                    key={p.locator}
+                    last={i === pendientesAgente.data!.pedidos_web.length - 1}
+                    onPress={() => setAsuntoPedidoWeb(p)}
+                    left={<NotifIcono icono="🛍️" color={theme.success} bg={theme.successSoft} />}
+                    title={`Pedido de la web · ${p.cliente ?? 'Cliente'}`}
+                    subtitle={`${p.kind ?? ''} · pide para ${p.recogida_fecha ? new Date(p.recogida_fecha).toLocaleDateString('es-ES') : 'sin fecha'}`}
+                  />
+                ))}
+              </ListCard>
+            </>
           )}
 
           <SectionLabel>Correos sin leer</SectionLabel>

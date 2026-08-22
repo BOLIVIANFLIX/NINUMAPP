@@ -1,55 +1,71 @@
+"""Inventario -- réplica de /panel/obrador (sub-sección Inventario): un solo botón
+de escaneo, la IA de ninuma-agente decide sola si es ticket de compra o albarán
+propio (ver services/panel_agente.py). NINUMAPP nunca reimplementa esta
+clasificación ni el descuento de stock -- todo pasa por ninuma-agente, igual que
+albaranes/Grand Folies, para que quede en la contabilidad real."""
+
+import functools
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
-from app.services import inventario
+from app.services import panel_agente
+from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/inventario", tags=["inventario"])
 
 
-@router.post("/ticket/escanear")
-async def escanear_ticket(imagen: UploadFile = File(...), usuario: Usuario = Depends(usuario_actual)):
-    lineas, ok = await inventario.procesar_ticket(await imagen.read(), imagen.content_type or "image/jpeg")
-    if not ok:
-        raise HTTPException(status_code=503, detail="No se ha podido leer el ticket (Gemini/Grocy no disponible).")
-    return {"lineas": lineas}
+def _manejar_error(f):
+    @functools.wraps(f)
+    async def envoltura(*args, **kwargs):
+        try:
+            return await f(*args, **kwargs)
+        except PanelAgenteError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+    return envoltura
 
 
-class LineaTicketConfirmada(BaseModel):
-    producto_id: int
-    cantidad: float
-    precio_unitario: float | None = None
+@router.post("/escanear")
+@_manejar_error
+async def escanear(imagen: UploadFile = File(...), usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.inventario_escanear(await imagen.read(), imagen.content_type or "image/jpeg")
 
 
-class ConfirmarTicketBody(BaseModel):
-    lineas: list[LineaTicketConfirmada]
+class EscaneoIdBody(BaseModel):
+    id: str
 
 
-@router.post("/ticket/confirmar")
-async def confirmar_ticket(body: ConfirmarTicketBody, usuario: Usuario = Depends(usuario_actual)):
-    await inventario.confirmar_ticket([linea.model_dump() for linea in body.lineas])
+@router.post("/confirmar")
+@_manejar_error
+async def confirmar(body: EscaneoIdBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.inventario_confirmar(body.id)
+
+
+@router.post("/descartar")
+@_manejar_error
+async def descartar(body: EscaneoIdBody, usuario: Usuario = Depends(usuario_actual)):
+    await panel_agente.inventario_descartar(body.id)
     return {"ok": True}
 
 
-@router.post("/albaran/escanear")
-async def escanear_albaran(imagen: UploadFile = File(...), usuario: Usuario = Depends(usuario_actual)):
-    lineas, ok = await inventario.procesar_albaran(await imagen.read(), imagen.content_type or "image/jpeg")
-    if not ok:
-        raise HTTPException(status_code=503, detail="No se ha podido leer el albarán (Gemini/Grocy no disponible).")
-    return {"lineas": lineas}
+@router.get("/stock-actual")
+async def stock_actual(usuario: Usuario = Depends(usuario_actual)):
+    lista, conectado = await panel_agente.inventario_stock_actual()
+    return {
+        "stock": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
+    }
 
 
-class LineaAlbaranConfirmada(BaseModel):
-    receta_id: int
-    cantidad: float
-
-
-class ConfirmarAlbaranBody(BaseModel):
-    lineas: list[LineaAlbaranConfirmada]
-
-
-@router.post("/albaran/confirmar")
-async def confirmar_albaran(body: ConfirmarAlbaranBody, usuario: Usuario = Depends(usuario_actual)):
-    await inventario.confirmar_albaran([linea.model_dump() for linea in body.lineas])
-    return {"ok": True}
+@router.get("/movimientos-recientes")
+async def movimientos_recientes(usuario: Usuario = Depends(usuario_actual)):
+    lista, conectado = await panel_agente.inventario_movimientos_recientes()
+    return {
+        "movimientos": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
+    }

@@ -221,23 +221,6 @@ export async function obtenerAvisos(): Promise<RespuestaAvisos> {
   return resp.data;
 }
 
-export interface LineaTicket {
-  producto_leido: string;
-  cantidad: number;
-  precio_unitario: number | null;
-  producto_id: number | null;
-  producto_nombre: string | null;
-  confianza: number;
-}
-
-export interface LineaAlbaran {
-  producto_leido: string;
-  cantidad: number;
-  receta_id: number | null;
-  receta_nombre: string | null;
-  confianza: number;
-}
-
 /** FormData con la foto -- se sube tal cual, sin fijar Content-Type a mano (axios/RN
  * ponen el boundary multipart correcto solas; fijarlo aquí lo rompería). */
 function formDataDeFoto(uri: string): FormData {
@@ -246,22 +229,77 @@ function formDataDeFoto(uri: string): FormData {
   return datos;
 }
 
-export async function escanearTicket(uri: string): Promise<LineaTicket[]> {
-  const resp = await api.post('/api/inventario/ticket/escanear', formDataDeFoto(uri));
-  return resp.data.lineas;
+// Un solo botón de escaneo -- la IA de ninuma-agente decide sola si es
+// ticket_compra o albaran_propio (réplica de /panel/obrador, sub-sección
+// Inventario). Ver inventario.escanear/confirmar/descartar en ninuma-agente.
+
+export interface LineaTicketCompra {
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number | null;
+  es_producto: boolean;
+  product_id: number | null;
+  nombre_grocy: string | null;
 }
 
-export async function confirmarTicket(lineas: { producto_id: number; cantidad: number; precio_unitario: number | null }[]): Promise<void> {
-  await api.post('/api/inventario/ticket/confirmar', { lineas });
+export interface LineaAlbaranPropio {
+  descripcion: string;
+  unidades: number;
 }
 
-export async function escanearAlbaran(uri: string): Promise<LineaAlbaran[]> {
-  const resp = await api.post('/api/inventario/albaran/escanear', formDataDeFoto(uri));
-  return resp.data.lineas;
+export type BorradorEscaneo =
+  | { id: string; tipo: 'ticket_compra'; proveedor: string | null; fecha: string | null; total: number | null; lineas: LineaTicketCompra[] }
+  | { id: string; tipo: 'albaran_propio'; cliente: string | null; numero: string | null; lineas: LineaAlbaranPropio[] };
+
+export async function escanearInventario(uri: string): Promise<BorradorEscaneo> {
+  const resp = await api.post('/api/inventario/escanear', formDataDeFoto(uri));
+  return resp.data;
 }
 
-export async function confirmarAlbaran(lineas: { receta_id: number; cantidad: number }[]): Promise<void> {
-  await api.post('/api/inventario/albaran/confirmar', { lineas });
+export interface ResultadoConfirmarInventario {
+  ok: boolean;
+  error?: string;
+  sumadas?: string[];
+  sin_emparejar?: string[];
+}
+
+export async function confirmarInventario(id: string): Promise<ResultadoConfirmarInventario> {
+  const resp = await api.post('/api/inventario/confirmar', { id });
+  return resp.data;
+}
+
+export async function descartarInventario(id: string): Promise<void> {
+  await api.post('/api/inventario/descartar', { id });
+}
+
+export interface StockGrocy {
+  producto: string;
+  cantidad: number;
+}
+
+export interface RespuestaStockInventario extends RespuestaConAviso<StockGrocy> {
+  stock: StockGrocy[];
+}
+
+export async function obtenerStockActual(): Promise<RespuestaStockInventario> {
+  const resp = await api.get('/api/inventario/stock-actual');
+  return resp.data;
+}
+
+export interface MovimientoInventario {
+  id: number;
+  tipo: 'ticket_compra' | 'albaran_propio';
+  descripcion: string;
+  creado_en: string;
+}
+
+export interface RespuestaMovimientosInventario extends RespuestaConAviso<MovimientoInventario> {
+  movimientos: MovimientoInventario[];
+}
+
+export async function obtenerMovimientosInventario(): Promise<RespuestaMovimientosInventario> {
+  const resp = await api.get('/api/inventario/movimientos-recientes');
+  return resp.data;
 }
 
 export interface Cliente {
@@ -360,6 +398,28 @@ export interface ClienteProfesional {
 
 export interface RespuestaClientesProfesionales extends RespuestaConAviso<ClienteProfesional> {
   clientes: ClienteProfesional[];
+}
+
+export interface AlbaranMensual {
+  numero: string;
+  creado_en: string;
+  total: number;
+}
+
+export interface GrupoAcumuladoMensual {
+  cliente: string;
+  albaranes: AlbaranMensual[];
+}
+
+export interface RespuestaAcumuladoMensual {
+  grupos: GrupoAcumuladoMensual[];
+  conectado: boolean;
+  aviso: string | null;
+}
+
+export async function obtenerAcumuladoMensualItemizado(): Promise<RespuestaAcumuladoMensual> {
+  const resp = await api.get('/api/pedidos-b2b/acumulado-mensual-itemizado');
+  return resp.data;
 }
 
 export async function obtenerClientesProfesionales(): Promise<RespuestaClientesProfesionales> {
@@ -623,6 +683,345 @@ export interface RespuestaCalendario extends RespuestaConAviso<EventoCalendario>
 export async function obtenerEventosCalendario(desde: string, hasta: string): Promise<RespuestaCalendario> {
   const resp = await api.get('/api/calendario/eventos', { params: { desde, hasta } });
   return resp.data;
+}
+
+// --- Obrador: alarmas recientes (historial real de sensores) ------------------
+
+export interface AlarmaReciente {
+  texto: string;
+  disparado_en: string;
+}
+
+export interface RespuestaAlarmasRecientes extends RespuestaConAviso<AlarmaReciente> {
+  recientes: AlarmaReciente[];
+}
+
+export async function obtenerAlarmasRecientes(): Promise<RespuestaAlarmasRecientes> {
+  const resp = await api.get('/api/obrador/alarmas-recientes');
+  return resp.data;
+}
+
+// --- Análisis financiero --------------------------------------------------------
+
+export type PeriodoAnalisis = 'semana' | 'mes' | 'anio' | 'rango';
+
+export interface ResumenAnalisis {
+  ingresos: number;
+  margen: number;
+  coste_materia_prima: number;
+  gasto_compras: number;
+  margen_pct: number | null;
+}
+
+export async function obtenerAnalisisResumen(p: PeriodoAnalisis, desde?: string, hasta?: string): Promise<ResumenAnalisis> {
+  const resp = await api.get('/api/analisis/resumen', { params: { p, desde, hasta } });
+  return resp.data;
+}
+
+export interface ProductoRentabilidad {
+  nombre: string;
+  unidades: number;
+  ingresos: number;
+  margen: number;
+  margen_pct: number | null;
+}
+
+export async function obtenerAnalisisProductos(p: PeriodoAnalisis, desde?: string, hasta?: string): Promise<ProductoRentabilidad[]> {
+  const resp = await api.get('/api/analisis/productos', { params: { p, desde, hasta } });
+  return resp.data.ranking;
+}
+
+export interface IngredienteReceta {
+  producto: string;
+  cantidad: number;
+  precio_unitario: number;
+}
+
+export interface RecetaCoste {
+  id: number;
+  nombre: string;
+  base_servings: number;
+  minutos_tanda: number | null;
+  precio_hora_efectivo: number;
+  coste_materia_prima: number;
+  coste_mano_obra: number;
+  coste_fijo_repercutido: number;
+  coste_real: number;
+  ingredientes: IngredienteReceta[];
+}
+
+export interface ConfigCostes {
+  precio_hora_trabajo: number | null;
+  horas_productivas_mes: number | null;
+}
+
+export interface RespuestaAnalisisRecetas {
+  config: ConfigCostes;
+  recetas: RecetaCoste[];
+}
+
+export async function obtenerAnalisisRecetas(): Promise<RespuestaAnalisisRecetas> {
+  const resp = await api.get('/api/analisis/recetas');
+  return resp.data;
+}
+
+export async function guardarConfigCostes(precioHora: number, horasMes: number): Promise<void> {
+  await api.post('/api/analisis/costes/guardar-config', { precio_hora: precioHora, horas_mes: horasMes });
+}
+
+export async function guardarTiempoReceta(recipeId: number, minutos: number, precioHora: number): Promise<void> {
+  await api.post('/api/analisis/costes/guardar-tiempo', { recipe_id: recipeId, minutos, precio_hora: precioHora });
+}
+
+export interface SubidaPrecio {
+  ingrediente: string;
+  precio_anterior: number;
+  precio_actual: number;
+  subida_pct: number;
+}
+
+export async function obtenerAnalisisPrecios(): Promise<SubidaPrecio[]> {
+  const resp = await api.get('/api/analisis/precios');
+  return resp.data.avisos;
+}
+
+// --- Ingresos y gastos -----------------------------------------------------------
+
+export interface DocumentoDelMes {
+  numero_documento: string;
+  cliente: string;
+  fecha: string;
+  total: number;
+}
+
+export interface GastoFijo {
+  id: number;
+  categoria: string;
+  descripcion: string | null;
+  lugar_compra: string | null;
+  producto: string | null;
+  importe: number;
+  fecha: string;
+  recurrente: boolean;
+  pagado: boolean;
+}
+
+export interface RespuestaIngresos {
+  anio: number;
+  mes: number;
+  es_mes_actual: boolean;
+  resumen: { ingresos: number; margen: number; gasto_compras: number; coste_materia_prima: number };
+  documentos: DocumentoDelMes[];
+  gastos_fijos: GastoFijo[];
+  total_materia_prima: number;
+  total_gastos_fijos: number;
+  margen_neto: number;
+}
+
+export async function obtenerIngresosDelMes(mes?: string): Promise<RespuestaIngresos> {
+  const resp = await api.get('/api/ingresos', { params: { mes } });
+  return resp.data;
+}
+
+export interface CrearGastoBody {
+  categoria: string;
+  importe: number;
+  fecha: string;
+  descripcion?: string;
+  lugar_compra?: string;
+  producto?: string;
+  recurrente?: boolean;
+  pagado?: boolean;
+}
+
+export async function crearGasto(body: CrearGastoBody): Promise<void> {
+  await api.post('/api/ingresos/gastos/crear', body);
+}
+
+export async function eliminarGasto(id: number): Promise<void> {
+  await api.post('/api/ingresos/gastos/eliminar', { id });
+}
+
+export async function marcarGastoPagado(id: number): Promise<void> {
+  await api.post('/api/ingresos/gastos/marcar-pagado', { id });
+}
+
+// --- Documentos históricos + ficha de cliente -------------------------------------
+
+export interface DocumentoHistorico {
+  numero: string;
+  cliente: string;
+  estado: string;
+  creado_en: string;
+}
+
+export interface RespuestaTodosDocumentos extends RespuestaConAviso<DocumentoHistorico> {
+  documentos: DocumentoHistorico[];
+}
+
+export async function obtenerTodosLosDocumentos(): Promise<RespuestaTodosDocumentos> {
+  const resp = await api.get('/api/pedidos-b2b/documentos');
+  return resp.data;
+}
+
+export interface LineaDocumento {
+  descripcion: string;
+  unidades: number;
+  precio_unitario: number;
+  importe: number;
+}
+
+export interface DocumentoDetalle {
+  cliente: string;
+  fecha_documento: string;
+  total: number;
+  lineas?: LineaDocumento[];
+}
+
+export async function obtenerDocumentoDetalle(numero: string): Promise<DocumentoDetalle> {
+  const resp = await api.get('/api/pedidos-b2b/documento', { params: { numero } });
+  return resp.data;
+}
+
+export function urlDocumentoArchivo(numero: string, tipo: 'pdf' | 'docx'): string {
+  return `${API_URL}/api/pedidos-b2b/documento/archivo?numero=${encodeURIComponent(numero)}&tipo=${tipo}`;
+}
+
+export interface ClienteDetalle {
+  nombre: string;
+  direccion: string | null;
+  cif: string | null;
+  nombre_documento: string | null;
+  tipo_facturacion: string;
+}
+
+export interface AlbaranDeCliente {
+  numero: string;
+  estado: string;
+  cobrado: boolean;
+  creado_en: string;
+}
+
+export interface ProductoDeCliente {
+  codigo: string | null;
+  descripcion: string;
+  ultimo_precio: number | null;
+}
+
+export interface RespuestaClienteDetalle {
+  cliente: ClienteDetalle;
+  albaranes: AlbaranDeCliente[];
+  productos: ProductoDeCliente[];
+}
+
+export async function obtenerClienteDetalle(nombre: string): Promise<RespuestaClienteDetalle> {
+  const resp = await api.get('/api/pedidos-b2b/clientes/detalle', { params: { nombre } });
+  return resp.data;
+}
+
+export async function crearClienteProfesional(nombre: string, direccion: string, cif: string, tipoFacturacion: string): Promise<void> {
+  await api.post('/api/pedidos-b2b/clientes/crear', { nombre, direccion, cif, tipo_facturacion: tipoFacturacion });
+}
+
+export interface ProductoCatalogo {
+  id: number;
+  cliente: string;
+  codigo: string | null;
+  descripcion: string;
+  precio: number;
+}
+
+export async function obtenerCatalogoCliente(cliente: string): Promise<ProductoCatalogo[]> {
+  const resp = await api.get('/api/pedidos-b2b/catalogo', { params: { cliente } });
+  return resp.data.productos;
+}
+
+export async function crearProductoCatalogo(cliente: string, descripcion: string, precio: number, codigo?: string | null): Promise<void> {
+  await api.post('/api/pedidos-b2b/catalogo/crear', { cliente, descripcion, precio, codigo: codigo || null });
+}
+
+export async function editarProductoCatalogo(id: number, descripcion: string, precio: number, codigo?: string | null): Promise<void> {
+  await api.post('/api/pedidos-b2b/catalogo/editar', { id, descripcion, precio, codigo: codigo || null });
+}
+
+export async function eliminarProductoCatalogo(id: number): Promise<void> {
+  await api.post('/api/pedidos-b2b/catalogo/eliminar', { id });
+}
+
+export async function editarClienteProfesional(
+  nombre: string, direccion: string, cif: string, nombreDocumento: string | null, tipoFacturacion: string,
+): Promise<void> {
+  await api.post('/api/pedidos-b2b/clientes/editar', { nombre, direccion, cif, nombre_documento: nombreDocumento, tipo_facturacion: tipoFacturacion });
+}
+
+// --- Precio público de la tienda online (override, ver WBD/src/lib/preciosOverride.ts) ---
+
+export interface PrecioTienda {
+  referencia: string;
+  precio: number;
+  actualizado_en: string;
+}
+
+export interface RespuestaPreciosTienda extends RespuestaConAviso<PrecioTienda> {
+  precios: PrecioTienda[];
+}
+
+export async function obtenerPreciosTienda(): Promise<RespuestaPreciosTienda> {
+  const resp = await api.get('/api/precios-tienda');
+  return resp.data;
+}
+
+export async function guardarPrecioTienda(referencia: string, precio: number): Promise<void> {
+  await api.post('/api/precios-tienda/guardar', { referencia, precio });
+}
+
+export async function eliminarPrecioTienda(referencia: string): Promise<void> {
+  await api.post('/api/precios-tienda/eliminar', { referencia });
+}
+
+// --- Avisos: correo → pedido, confirmar/mover pedido web -------------------------
+
+export interface EncargoPendiente {
+  id: number;
+  categoria: string;
+  cliente: string | null;
+  resumen: string | null;
+  urgente: boolean;
+  fecha_mencionada: string | null;
+  visto: boolean;
+}
+
+export interface PedidoWebPendiente {
+  locator: string;
+  cliente: string | null;
+  kind: string | null;
+  total_cents: number | null;
+  recogida_fecha: string | null;
+  visto: boolean;
+}
+
+export interface RespuestaAvisosPendientes {
+  encargos: EncargoPendiente[];
+  pedidos_web: PedidoWebPendiente[];
+  conectado: boolean;
+  aviso: string | null;
+}
+
+export async function obtenerAvisosPendientes(): Promise<RespuestaAvisosPendientes> {
+  const resp = await api.get('/api/avisos/pendientes');
+  return resp.data;
+}
+
+export async function emailAsignarDia(id: number, fecha: string, descripcion: string): Promise<void> {
+  await api.post('/api/avisos/email/asignar-dia', { id, fecha, descripcion });
+}
+
+export async function pedidoWebConfirmar(locator: string): Promise<void> {
+  await api.post('/api/avisos/pedido-web/confirmar', { locator });
+}
+
+export async function pedidoWebMover(locator: string, fecha: string): Promise<void> {
+  await api.post('/api/avisos/pedido-web/mover', { locator, fecha });
 }
 
 export function mensajeError(err: unknown): string {

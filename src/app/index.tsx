@@ -1,8 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AnalisisFinanciero } from '@/components/analisis-financiero';
+import { IngresosGastos } from '@/components/ingresos-gastos';
+import { PreciosTienda } from '@/components/precios-tienda';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { KpiCard, KpiRow, ListCard, ListRow, Pill, SectionLabel } from '@/components/ui/panel';
@@ -21,10 +25,13 @@ const ACCESOS = [
   { destino: '/avisos' as const, icono: '🔔', texto: 'Avisos' },
 ];
 
+type Vista = 'inicio' | 'analisis' | 'ingresos' | 'precios-tienda';
+
 export default function InicioScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { cerrarSesion } = useAuth();
+  const [vista, setVista] = useState<Vista>('inicio');
 
   const { data: resumen, error, isFetching, refetch } = useQuery({
     queryKey: ['resumen'],
@@ -34,6 +41,10 @@ export default function InicioScreen() {
 
   const hoy = fechaHoy.format(new Date());
   const f = resumen?.financiero;
+
+  if (vista === 'analisis') return <AnalisisFinanciero onVolver={() => setVista('inicio')} />;
+  if (vista === 'ingresos') return <IngresosGastos onVolver={() => setVista('inicio')} />;
+  if (vista === 'precios-tienda') return <PreciosTienda onVolver={() => setVista('inicio')} />;
 
   return (
     <ThemedView style={styles.container}>
@@ -114,10 +125,19 @@ export default function InicioScreen() {
             ))}
           </View>
           {f && (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.gastos}>
-              💸 Gastos del mes: {eur.format(f.gastos_mes)}
-            </ThemedText>
+            <Pressable onPress={() => setVista('ingresos')}>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.gastos}>
+                💸 Gastos del mes: {eur.format(f.gastos_mes)}
+              </ThemedText>
+            </Pressable>
           )}
+
+          <SectionLabel>Gestión</SectionLabel>
+          <ListCard>
+            <ListRow onPress={() => setVista('analisis')} title="📊 Análisis financiero" subtitle="Resumen, productos, recetas, precios" />
+            <ListRow onPress={() => setVista('ingresos')} title="💰 Ingresos y gastos" subtitle="Histórico mes a mes" />
+            <ListRow last onPress={() => setVista('precios-tienda')} title="🏷️ Precios de la tienda" subtitle="Precio público, se refleja en la web" />
+          </ListCard>
 
           {!!documentos.data?.documentos.length && (
             <>

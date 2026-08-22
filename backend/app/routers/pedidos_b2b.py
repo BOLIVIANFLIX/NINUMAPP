@@ -41,6 +41,16 @@ async def clientes(usuario: Usuario = Depends(usuario_actual)):
     }
 
 
+@router.get("/acumulado-mensual-itemizado")
+async def acumulado_mensual_itemizado(usuario: Usuario = Depends(usuario_actual)):
+    lista, conectado = await panel_agente.acumulado_mensual_itemizado()
+    return {
+        "grupos": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
+    }
+
+
 @router.get("/documentos-recientes")
 async def documentos_recientes(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.documentos_recientes()
@@ -230,3 +240,115 @@ class DescartarGFBody(BaseModel):
 async def grand_folies_descartar(body: DescartarGFBody, usuario: Usuario = Depends(usuario_actual)):
     await panel_agente.grand_folies_descartar(body.id)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Documentos históricos + ficha de cliente -- réplica de /panel/pedidos/documentos,
+# /panel/pedidos/documento(+archivo), /panel/clientes/{nombre}.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/documentos")
+async def documentos(usuario: Usuario = Depends(usuario_actual)):
+    lista, conectado = await panel_agente.todos_los_documentos()
+    return {
+        "documentos": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
+    }
+
+
+@router.get("/documento")
+@_manejar_error
+async def documento(numero: str, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.documento_detalle(numero)
+
+
+@router.get("/documento/archivo")
+@_manejar_error
+async def documento_archivo(numero: str, tipo: str = "pdf", usuario: Usuario = Depends(usuario_actual)):
+    resultado = await panel_agente.documento_archivo(numero, tipo)
+    if resultado is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado.")
+    contenido, content_type = resultado
+    return Response(content=contenido, media_type=content_type)
+
+
+@router.get("/clientes/detalle")
+@_manejar_error
+async def cliente_detalle(nombre: str, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.cliente_detalle(nombre)
+
+
+class CrearClienteBody(BaseModel):
+    nombre: str
+    direccion: str = ""
+    cif: str = ""
+    tipo_facturacion: str = "directa"
+
+
+@router.post("/clientes/crear")
+@_manejar_error
+async def crear_cliente(body: CrearClienteBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.cliente_crear(body.nombre, body.direccion, body.cif, body.tipo_facturacion)
+
+
+class EditarClienteBody(BaseModel):
+    nombre: str
+    direccion: str = ""
+    cif: str = ""
+    nombre_documento: str | None = None
+    tipo_facturacion: str = "directa"
+
+
+@router.post("/clientes/editar")
+@_manejar_error
+async def editar_cliente(body: EditarClienteBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.cliente_editar(body.nombre, body.direccion, body.cif, body.nombre_documento, body.tipo_facturacion)
+
+
+# ---------------------------------------------------------------------------
+# Catálogo de precios por cliente -- precio propio por producto y por profesional.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/catalogo")
+@_manejar_error
+async def catalogo(cliente: str, usuario: Usuario = Depends(usuario_actual)):
+    return {"productos": await panel_agente.catalogo_cliente(cliente)}
+
+
+class CatalogoCrearBody(BaseModel):
+    cliente: str
+    descripcion: str
+    precio: float
+    codigo: str | None = None
+
+
+@router.post("/catalogo/crear")
+@_manejar_error
+async def catalogo_crear(body: CatalogoCrearBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.catalogo_crear(body.cliente, body.descripcion, body.precio, body.codigo)
+
+
+class CatalogoEditarBody(BaseModel):
+    id: int
+    descripcion: str
+    precio: float
+    codigo: str | None = None
+
+
+@router.post("/catalogo/editar")
+@_manejar_error
+async def catalogo_editar(body: CatalogoEditarBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.catalogo_editar(body.id, body.descripcion, body.precio, body.codigo)
+
+
+class CatalogoIdBody(BaseModel):
+    id: int
+
+
+@router.post("/catalogo/eliminar")
+@_manejar_error
+async def catalogo_eliminar(body: CatalogoIdBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.catalogo_eliminar(body.id)

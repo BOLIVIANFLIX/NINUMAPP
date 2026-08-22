@@ -1,35 +1,41 @@
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { InventarioAlbaran } from '@/components/inventario-albaran';
-import { InventarioTicket } from '@/components/inventario-ticket';
+import { InventarioEscaner } from '@/components/inventario-escaner';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Dot, ListCard, ListRow, SectionLabel, Segmented } from '@/components/ui/panel';
+import { Ficha, FilaFicha, ListCard, ListRow, SectionLabel, Segmented } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mensajeError, obtenerAlarmas, obtenerRecetas, obtenerSensores, urlSnapshotCamara, type SensorHA } from '@/lib/api';
+import {
+  obtenerAlarmasRecientes,
+  obtenerMovimientosInventario,
+  obtenerSensores,
+  obtenerStockActual,
+  urlSnapshotCamara,
+  type SensorHA,
+} from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 
 const fechaHora = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-type Vista = 'obrador' | 'ticket' | 'albaran';
-type Sub = 'Recetas' | 'Inventario';
+type Vista = 'obrador' | 'escanear';
+type Sub = 'Sensores' | 'Inventario';
 
 export default function ObradorScreen() {
   const theme = useTheme();
   const [vista, setVista] = useState<Vista>('obrador');
-  const [sub, setSub] = useState<Sub>('Recetas');
+  const [sub, setSub] = useState<Sub>('Sensores');
 
-  const alarmas = useQuery({ queryKey: ['obrador', 'alarmas'], queryFn: obtenerAlarmas });
-  const recetas = useQuery({ queryKey: ['obrador', 'recetas'], queryFn: obtenerRecetas });
+  const recientes = useQuery({ queryKey: ['obrador', 'alarmas-recientes'], queryFn: obtenerAlarmasRecientes });
   const sensores = useQuery({ queryKey: ['obrador', 'sensores'], queryFn: obtenerSensores, refetchInterval: 30_000 });
+  const stock = useQuery({ queryKey: ['obrador', 'stock-actual'], queryFn: obtenerStockActual, enabled: sub === 'Inventario' });
+  const movimientos = useQuery({ queryKey: ['obrador', 'movimientos'], queryFn: obtenerMovimientosInventario, enabled: sub === 'Inventario' });
 
-  if (vista === 'ticket') return <InventarioTicket onVolver={() => setVista('obrador')} />;
-  if (vista === 'albaran') return <InventarioAlbaran onVolver={() => setVista('obrador')} />;
+  if (vista === 'escanear') return <InventarioEscaner onVolver={() => setVista('obrador')} />;
 
   return (
     <ThemedView style={styles.container}>
@@ -39,17 +45,42 @@ export default function ObradorScreen() {
             Obrador
           </ThemedText>
 
-          <Segmented opciones={['Recetas', 'Inventario']} activo={sub} onCambiar={(v) => setSub(v as Sub)} />
+          <Segmented opciones={['Sensores', 'Inventario']} activo={sub} onCambiar={(v) => setSub(v as Sub)} />
 
-          {sub === 'Recetas' ? (
+          {sub === 'Sensores' ? (
             <>
-              {sensores.data?.alarma_activa && (
-                <View style={[styles.bannerAlarma, { backgroundColor: theme.dangerSoft }]}>
-                  <ThemedText type="small" style={{ color: theme.danger, fontWeight: '700' }}>
-                    ⚠️ {sensores.data.alarma_activa}
-                  </ThemedText>
-                </View>
+              {/* Registro permanente de las últimas alarmas (vistas o no) -- distinto
+                  del banner de abajo, que es el estado ACTUAL agregado. */}
+              {!!recientes.data?.recientes.length && (
+                <>
+                  <SectionLabel>Alarmas recientes</SectionLabel>
+                  <Ficha style={styles.fichaAlarmas}>
+                    {recientes.data.recientes.map((a, i) => (
+                      <FilaFicha
+                        key={`${a.disparado_en}-${i}`}
+                        etiqueta={a.texto}
+                        valor={fechaHora.format(new Date(a.disparado_en))}
+                        last={i === recientes.data!.recientes.length - 1}
+                      />
+                    ))}
+                  </Ficha>
+                </>
               )}
+
+              {sensores.data?.alarma_activa != null &&
+                (sensores.data.alarma_activa.toLowerCase().startsWith('ninguna') ? (
+                  <View style={[styles.bannerAlarma, { backgroundColor: theme.successSoft }]}>
+                    <ThemedText type="small" style={{ color: theme.success, fontWeight: '700' }}>
+                      ✅ {sensores.data.alarma_activa}
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <View style={[styles.bannerAlarma, { backgroundColor: theme.dangerSoft }]}>
+                    <ThemedText type="small" style={{ color: theme.danger, fontWeight: '700' }}>
+                      ⚠️ {sensores.data.alarma_activa}
+                    </ThemedText>
+                  </View>
+                ))}
 
               <SectionLabel>Sensores</SectionLabel>
               {sensores.isLoading && <ActivityIndicator color={theme.accent} />}
@@ -86,84 +117,57 @@ export default function ObradorScreen() {
                   </View>
                 </>
               )}
+            </>
+          ) : (
+            <>
+              <ListCard>
+                <ListRow
+                  last
+                  onPress={() => setVista('escanear')}
+                  left={<AccionIcono icono="📷" />}
+                  title="Escanear"
+                  subtitle="Ticket de compra o tu propio albarán -- lo distingo yo solo."
+                />
+              </ListCard>
 
-              <SectionLabel>Alarmas de neveras</SectionLabel>
-              {alarmas.isLoading && <ActivityIndicator color={theme.accent} />}
-              {alarmas.error && (
-                <ThemedText type="small" themeColor="danger">
-                  {mensajeError(alarmas.error)}
-                </ThemedText>
+              <SectionLabel>Inventario actual (Grocy)</SectionLabel>
+              {stock.isLoading && <ActivityIndicator color={theme.accent} />}
+              {stock.data?.aviso && (
+                <ThemedText type="small" themeColor="textSecondary">ℹ️ {stock.data.aviso}</ThemedText>
               )}
-              {alarmas.data?.aviso && (
-                <ThemedText type="small" themeColor="textSecondary">
-                  ℹ️ {alarmas.data.aviso}
-                </ThemedText>
+              {stock.data?.conectado && stock.data.stock.length === 0 && (
+                <ThemedText type="small" themeColor="textSecondary">Sin stock registrado en Grocy.</ThemedText>
               )}
-              {alarmas.data?.conectado && alarmas.data.alarmas.length === 0 && (
-                <ThemedText type="small" themeColor="textSecondary">
-                  Sin alarmas activas.
-                </ThemedText>
-              )}
-              {!!alarmas.data?.alarmas.length && (
+              {!!stock.data?.stock.length && (
                 <ListCard>
-                  {alarmas.data.alarmas.map((a, i) => (
+                  {stock.data.stock.map((s, i) => (
                     <ListRow
-                      key={a.entity_id}
-                      last={i === alarmas.data!.alarmas.length - 1}
-                      left={<Dot color="warning" />}
-                      title={a.nombre}
-                      subtitle={a.ultima_vez ? `Última vez: ${fechaHora.format(new Date(a.ultima_vez))}` : 'Sin activaciones registradas'}
+                      key={s.producto}
+                      last={i === stock.data!.stock.length - 1}
+                      title={s.producto}
+                      right={<ThemedText type="smallBold">{s.cantidad}</ThemedText>}
                     />
                   ))}
                 </ListCard>
               )}
 
-              <SectionLabel>Recetas</SectionLabel>
-              {recetas.isLoading && <ActivityIndicator color={theme.accent} />}
-              {recetas.error && (
-                <ThemedText type="small" themeColor="danger">
-                  {mensajeError(recetas.error)}
-                </ThemedText>
+              <SectionLabel>Últimos movimientos</SectionLabel>
+              {movimientos.isLoading && <ActivityIndicator color={theme.accent} />}
+              {movimientos.data?.conectado && movimientos.data.movimientos.length === 0 && (
+                <ThemedText type="small" themeColor="textSecondary">Todavía no se ha confirmado ningún escaneo.</ThemedText>
               )}
-              {recetas.data?.aviso && (
-                <ThemedText type="small" themeColor="textSecondary">
-                  ℹ️ {recetas.data.aviso}
-                </ThemedText>
-              )}
-              {recetas.data?.conectado && recetas.data.recetas.length === 0 && (
-                <ThemedText type="small" themeColor="textSecondary">
-                  Grocy no tiene recetas todavía.
-                </ThemedText>
-              )}
-              {!!recetas.data?.recetas.length && (
+              {!!movimientos.data?.movimientos.length && (
                 <ListCard>
-                  {recetas.data.recetas.map((r, i) => (
-                    <ListRow key={r.id} last={i === recetas.data!.recetas.length - 1} left={<ThemedText style={{ fontSize: 18 }}>🥐</ThemedText>} title={r.nombre} subtitle={r.descripcion} />
+                  {movimientos.data.movimientos.map((m, i) => (
+                    <ListRow
+                      key={m.id}
+                      last={i === movimientos.data!.movimientos.length - 1}
+                      title={m.descripcion}
+                      subtitle={fechaHora.format(new Date(m.creado_en))}
+                    />
                   ))}
                 </ListCard>
               )}
-              <ThemedText type="small" themeColor="textSecondary" style={styles.notaCoste}>
-                ℹ️ Coste real por hora: próximamente.
-              </ThemedText>
-            </>
-          ) : (
-            <>
-              <SectionLabel>Escanear</SectionLabel>
-              <ListCard>
-                <ListRow
-                  onPress={() => setVista('ticket')}
-                  left={<AccionIcono icono="📷" />}
-                  title="Escanear ticket de compra"
-                  subtitle="Suma lo comprado al stock de Grocy."
-                />
-                <ListRow
-                  last
-                  onPress={() => setVista('albaran')}
-                  left={<AccionIcono icono="📦" />}
-                  title="Escanear mi albarán"
-                  subtitle="Descuenta los ingredientes de las recetas entregadas."
-                />
-              </ListCard>
             </>
           )}
         </ScrollView>
@@ -200,9 +204,9 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scroll: { padding: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
   titulo: { fontSize: 26, lineHeight: 31, marginBottom: Spacing.three },
-  notaCoste: { marginTop: Spacing.two, lineHeight: 18 },
   accionIcono: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   bannerAlarma: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three },
+  fichaAlarmas: { marginBottom: Spacing.three },
   sensorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   sensorCard: { flexGrow: 1, flexBasis: '47%', borderRadius: 16, padding: Spacing.three, gap: 2 },
   sensorValor: { fontSize: 22, lineHeight: 26 },

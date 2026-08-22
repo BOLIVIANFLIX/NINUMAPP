@@ -5,6 +5,7 @@ from app.models import Usuario
 from app.routers.auth import usuario_actual
 from app.services import grocy as grocy_service
 from app.services import ha as ha_service
+from app.services import panel_agente
 
 router = APIRouter(prefix="/api/obrador", tags=["obrador"])
 
@@ -16,6 +17,18 @@ async def alarmas(usuario: Usuario = Depends(usuario_actual)):
         "alarmas": lista,
         "conectado": conectado,
         "aviso": None if conectado else "Home Assistant todavía no está conectado en NINUMAPP.",
+    }
+
+
+@router.get("/alarmas-recientes")
+async def alarmas_recientes(usuario: Usuario = Depends(usuario_actual)):
+    """Historial real de sensores (últimas 5, vistas o no) -- no la lista de
+    automatizaciones. Mismo registro permanente que /panel/obrador (Sensores)."""
+    lista, conectado = await panel_agente.alarmas_recientes()
+    return {
+        "recientes": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
     }
 
 

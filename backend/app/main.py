@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import auth, avisos, calendario, clientes, gmail, inventario, obrador, pedidos, pedidos_b2b, pedidos_propios, resumen, usuarios_panel
+from app.routers import analisis, auth, avisos, calendario, clientes, gmail, ingresos, inventario, obrador, pedidos, pedidos_b2b, pedidos_propios, precios_tienda, resumen, usuarios_panel
 
 
 @asynccontextmanager
@@ -38,6 +38,9 @@ app.include_router(pedidos_propios.router)
 app.include_router(gmail.router)
 app.include_router(usuarios_panel.router)
 app.include_router(calendario.router)
+app.include_router(analisis.router)
+app.include_router(ingresos.router)
+app.include_router(precios_tienda.router)
 
 
 @app.get("/api/salud")
