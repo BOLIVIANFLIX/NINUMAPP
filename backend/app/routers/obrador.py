@@ -6,6 +6,7 @@ from app.routers.auth import usuario_actual
 from app.services import grocy as grocy_service
 from app.services import ha as ha_service
 from app.services import panel_agente
+from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/obrador", tags=["obrador"])
 
@@ -30,6 +31,28 @@ async def alarmas_recientes(usuario: Usuario = Depends(usuario_actual)):
         "conectado": conectado,
         "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
     }
+
+
+@router.get("/alarmas-no-vistas")
+async def alarmas_no_vistas(usuario: Usuario = Depends(usuario_actual)):
+    """Nº para el badge de Obrador -- alarmas de HA no vistas todavía (ver
+    panel_agente.alarmas_no_vistas). Reemplaza a /alarmas (consulta en vivo a HA que
+    no coincidía con /alarmas-recientes -- Ariadna, 2026-08-22: "3 avisos que no
+    corresponden a nada")."""
+    n = await panel_agente.alarmas_no_vistas()
+    return {"no_vistas": n or 0}
+
+
+@router.post("/alarmas-marcar-vistas")
+async def alarmas_marcar_vistas(usuario: Usuario = Depends(usuario_actual)):
+    """Se llama al entrar en Obrador -- limpia el badge sin tocar el histórico
+    ("Alarmas recientes" se queda igual, ver alarmas_recientes arriba). Best-effort:
+    si ninuma-agente no responde, no debe romper la pantalla por esto."""
+    try:
+        await panel_agente.marcar_alarmas_vistas()
+    except PanelAgenteError:
+        pass
+    return {"ok": True}
 
 
 @router.get("/sensores")

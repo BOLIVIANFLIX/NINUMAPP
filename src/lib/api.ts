@@ -169,6 +169,15 @@ export async function obtenerAlarmas(): Promise<RespuestaAlarmas> {
   return resp.data;
 }
 
+export async function obtenerAlarmasNoVistas(): Promise<number> {
+  const resp = await api.get('/api/obrador/alarmas-no-vistas');
+  return resp.data.no_vistas;
+}
+
+export async function marcarAlarmasVistas(): Promise<void> {
+  await api.post('/api/obrador/alarmas-marcar-vistas');
+}
+
 export interface SensorHA {
   entity_id: string;
   etiqueta: string;

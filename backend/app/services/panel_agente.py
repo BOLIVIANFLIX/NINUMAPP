@@ -301,6 +301,19 @@ async def alarmas_recientes() -> tuple[list[dict], bool]:
     return (datos, True) if datos is not None else ([], False)
 
 
+async def alarmas_no_vistas() -> int | None:
+    """Nº para el badge de Obrador -- mismo criterio "visto" que /panel/obrador,
+    hasta ahora nunca conectado a NINUMAPP (usaba en su lugar una consulta en vivo a
+    Home Assistant que no coincidía con "Alarmas recientes" -- ver alarmas_recientes
+    arriba, fix 2026-08-22)."""
+    datos = await _get("/api/ninumapp/alarmas-no-vistas")
+    return datos.get("no_vistas") if datos is not None else None
+
+
+async def marcar_alarmas_vistas() -> None:
+    await _post("/api/ninumapp/alarmas-marcar-vistas", {})
+
+
 # ---------------------------------------------------------------------------
 # Inventario -- un solo botón de escaneo, la IA decide sola ticket_compra vs.
 # albaran_propio (ver inventario.escanear en ninuma-agente). Nunca reimplementado

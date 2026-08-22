@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -12,6 +12,7 @@ import { Ficha, FilaFicha, ListCard, ListRow, SectionLabel, Segmented } from '@/
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
+  marcarAlarmasVistas,
   obtenerAlarmasRecientes,
   obtenerMovimientosInventario,
   obtenerSensores,
@@ -29,6 +30,7 @@ type Sub = 'Sensores' | 'Inventario';
 export default function ObradorScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
   const [vista, setVista] = useState<Vista>('obrador');
   const [sub, setSub] = useState<Sub>('Sensores');
 
@@ -37,7 +39,17 @@ export default function ObradorScreen() {
     setSub('Sensores');
   }
 
-  useFocusEffect(useCallback(() => volverAlPrincipal, []));
+  // Al entrar en Obrador se marcan como vistas las alarmas de HA pendientes -- el
+  // badge de la barra inferior se limpia, "Alarmas recientes" se queda igual (son
+  // dos cosas distintas, ver hooks/use-tab-badges.ts).
+  useFocusEffect(
+    useCallback(() => {
+      marcarAlarmasVistas()
+        .then(() => queryClient.invalidateQueries({ queryKey: ['obrador', 'alarmas-no-vistas'] }))
+        .catch(() => {});
+      return volverAlPrincipal;
+    }, [queryClient]),
+  );
 
   useEffect(() => {
     return navigation.addListener('tabPress' as never, volverAlPrincipal);
