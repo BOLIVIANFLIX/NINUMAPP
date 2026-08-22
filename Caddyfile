@@ -1,3 +1,13 @@
 ninumapp.tunga.es {
+	# API JSON pura, sin HTML -- cabeceras mínimas de rigor. CSP restrictiva a
+	# propósito (default-src 'none') porque aquí nunca se sirve nada renderizable.
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Content-Security-Policy "default-src 'none'"
+		-Server
+	}
 	reverse_proxy backend:8000
 }
