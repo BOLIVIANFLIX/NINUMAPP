@@ -22,6 +22,7 @@ PyOTP==2.10.0
 python-dotenv==1.2.3
 python-multipart==0.0.32
 PyYAML==6.0.3
+slowapi==0.1.10
 SQLAlchemy==2.0.52
 starlette==1.6.0
 typing-inspection==0.4.4

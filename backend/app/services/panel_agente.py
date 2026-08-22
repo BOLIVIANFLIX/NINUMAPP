@@ -108,6 +108,17 @@ async def _post(ruta: str, cuerpo: dict[str, Any]) -> dict | None:
         raise PanelAgenteError("No se ha podido conectar con ninuma-agente.") from e
 
 
+async def notificar_seguridad(mensaje: str) -> None:
+    """Aviso por Telegram (mismo bot que ya usa Ariadna a diario) para eventos de
+    seguridad reales del login de NINUMAPP -- bloqueo por fuerza bruta, robo de
+    sesión detectado. Best-effort a propósito: si ninuma-agente no responde, el
+    login/refresh no debe fallar por esto -- el error se traga aquí mismo."""
+    try:
+        await _post("/api/ninumapp/notificar-seguridad", {"mensaje": mensaje})
+    except PanelAgenteError:
+        pass
+
+
 async def resumen_financiero() -> tuple[ResumenFinanciero | None, bool]:
     datos = await _get("/api/ninumapp/resumen-financiero")
     return (datos, True) if datos is not None else (None, False)

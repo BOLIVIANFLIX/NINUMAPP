@@ -16,6 +16,13 @@ from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/inventario", tags=["inventario"])
 
+# Una foto de móvil normal pesa 1-8 MB -- 15 MB da margen de sobra sin dejar subir
+# cualquier cosa. Content-Type lo manda el propio cliente (no es una garantía real,
+# ninuma-agente/Gemini son quienes de verdad validan que sea una imagen legible),
+# pero rechazar aquí lo que ya viene mal etiquetado evita gastar la llamada a la IA
+# en basura.
+_TAMANO_MAXIMO_BYTES = 15 * 1024 * 1024
+
 
 def _manejar_error(f):
     @functools.wraps(f)
@@ -31,7 +38,14 @@ def _manejar_error(f):
 @router.post("/escanear")
 @_manejar_error
 async def escanear(imagen: UploadFile = File(...), usuario: Usuario = Depends(usuario_actual)):
-    return await panel_agente.inventario_escanear(await imagen.read(), imagen.content_type or "image/jpeg")
+    if not (imagen.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="El archivo tiene que ser una imagen.")
+
+    contenido = await imagen.read()
+    if len(contenido) > _TAMANO_MAXIMO_BYTES:
+        raise HTTPException(status_code=400, detail="La imagen pesa demasiado (máximo 15 MB).")
+
+    return await panel_agente.inventario_escanear(contenido, imagen.content_type or "image/jpeg")
 
 
 class EscaneoIdBody(BaseModel):
