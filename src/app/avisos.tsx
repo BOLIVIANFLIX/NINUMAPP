@@ -7,16 +7,20 @@ import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
+import { UsuariosPanel } from '@/components/usuarios-panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mensajeError, obtenerAvisos, obtenerCorreosPendientes, obtenerGrandFoliesPendientes, type PedidoGrandFolies } from '@/lib/api';
 
 const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+type Vista = 'avisos' | 'usuarios';
+
 export default function AvisosScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [pedidoGF, setPedidoGF] = useState<PedidoGrandFolies | null>(null);
+  const [vista, setVista] = useState<Vista>('avisos');
 
   const solicitudes = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const correos = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes });
@@ -34,6 +38,8 @@ export default function AvisosScreen() {
       />
     );
   }
+
+  if (vista === 'usuarios') return <UsuariosPanel onVolver={() => setVista('avisos')} />;
 
   return (
     <ThemedView style={styles.container}>
@@ -135,6 +141,12 @@ export default function AvisosScreen() {
               ))}
             </ListCard>
           )}
+
+          <Pressable onPress={() => setVista('usuarios')} style={styles.enlaceUsuarios}>
+            <ThemedText type="link" style={{ color: theme.accent }}>
+              👤 Gestionar usuarios ›
+            </ThemedText>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -156,4 +168,5 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 26, lineHeight: 31, marginBottom: Spacing.three },
   notifIco: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   bannerAlarma: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three },
+  enlaceUsuarios: { marginTop: Spacing.four },
 });

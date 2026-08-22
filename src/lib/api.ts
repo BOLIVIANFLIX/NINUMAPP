@@ -560,6 +560,49 @@ export async function obtenerDocumentosRecientes(): Promise<RespuestaDocumentosR
   return resp.data;
 }
 
+// --- Gestión de usuarios del panel (ninuma-agente) ---------------------------
+// No confundir con el login propio de NINUMAPP (auth-context.tsx) -- esto
+// administra las cuentas de ninuma-bot.tunga.es/panel.
+
+export interface UsuarioPanel {
+  usuario: string;
+  creado_en: string;
+  totp_activo: boolean;
+}
+
+export interface RespuestaUsuariosPanel extends RespuestaConAviso<UsuarioPanel> {
+  usuarios: UsuarioPanel[];
+}
+
+export async function obtenerUsuariosPanel(): Promise<RespuestaUsuariosPanel> {
+  const resp = await api.get('/api/usuarios-panel');
+  return resp.data;
+}
+
+export interface ResultadoUsuarioPanel {
+  ok: boolean;
+  error?: string;
+}
+
+export async function crearUsuarioPanel(usuario: string, password: string): Promise<ResultadoUsuarioPanel> {
+  const resp = await api.post('/api/usuarios-panel/crear', { usuario, password });
+  return resp.data;
+}
+
+export async function eliminarUsuarioPanel(usuario: string): Promise<ResultadoUsuarioPanel> {
+  const resp = await api.post('/api/usuarios-panel/eliminar', { usuario });
+  return resp.data;
+}
+
+export async function cerrarSesionUsuarioPanel(usuario: string): Promise<void> {
+  await api.post('/api/usuarios-panel/cerrar-sesion', { usuario });
+}
+
+export async function cambiarPasswordUsuarioPanel(usuario: string, password: string): Promise<ResultadoUsuarioPanel> {
+  const resp = await api.post('/api/usuarios-panel/cambiar-password', { usuario, password });
+  return resp.data;
+}
+
 export function mensajeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     return (err.response?.data as { detail?: string } | undefined)?.detail ?? 'No se ha podido conectar con el servidor.';

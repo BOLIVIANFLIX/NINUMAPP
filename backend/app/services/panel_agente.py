@@ -220,3 +220,31 @@ async def grand_folies_confirmar(
 
 async def grand_folies_descartar(id_: str) -> None:
     await _post("/api/ninumapp/grand-folies/descartar", {"id": id_})
+
+
+# ---------------------------------------------------------------------------
+# Gestión de usuarios del panel (ninuma-agente) -- distinto del login propio de
+# NINUMAPP (ver app/auth.py): esto administra las cuentas que entran a
+# ninuma-bot.tunga.es/panel, no las de NINUMAPP.
+# ---------------------------------------------------------------------------
+
+
+async def usuarios_panel() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/usuarios")
+    return (datos, True) if datos is not None else ([], False)
+
+
+async def crear_usuario_panel(usuario: str, password: str) -> dict:
+    return await _post("/api/ninumapp/usuarios/crear", {"usuario": usuario, "password": password})
+
+
+async def eliminar_usuario_panel(usuario: str) -> dict:
+    return await _post("/api/ninumapp/usuarios/eliminar", {"usuario": usuario})
+
+
+async def cerrar_sesion_usuario_panel(usuario: str) -> None:
+    await _post("/api/ninumapp/usuarios/cerrar-sesion", {"usuario": usuario})
+
+
+async def cambiar_password_usuario_panel(usuario: str, password: str) -> dict:
+    return await _post("/api/ninumapp/usuarios/cambiar-password", {"usuario": usuario, "password": password})
