@@ -505,12 +505,24 @@ async def precios_tienda_online() -> tuple[list[dict], bool]:
     return datos["precios"], datos["conectado"]
 
 
-async def precio_tienda_guardar(referencia: str, precio: float) -> dict:
-    return await _post("/api/ninumapp/precios-tienda-online/guardar", {"referencia": referencia, "precio": precio})
+async def precio_tienda_guardar(referencia: str, precio: float | None = None, activo: bool | None = None) -> dict:
+    cuerpo: dict[str, Any] = {"referencia": referencia}
+    if precio is not None:
+        cuerpo["precio"] = precio
+    if activo is not None:
+        cuerpo["activo"] = activo
+    return await _post("/api/ninumapp/precios-tienda-online/guardar", cuerpo)
 
 
 async def precio_tienda_eliminar(referencia: str) -> dict:
     return await _post("/api/ninumapp/precios-tienda-online/eliminar", {"referencia": referencia})
+
+
+async def catalogo_tienda() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/catalogo-tienda")
+    if datos is None:
+        return [], False
+    return datos["piezas"], datos["conectado"]
 
 
 # ---------------------------------------------------------------------------

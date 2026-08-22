@@ -38,13 +38,14 @@ async def listar(usuario: Usuario = Depends(usuario_actual)):
 
 class GuardarPrecioBody(BaseModel):
     referencia: str
-    precio: float
+    precio: float | None = None
+    activo: bool | None = None
 
 
 @router.post("/guardar")
 @_manejar_error
 async def guardar(body: GuardarPrecioBody, usuario: Usuario = Depends(usuario_actual)):
-    return await panel_agente.precio_tienda_guardar(body.referencia, body.precio)
+    return await panel_agente.precio_tienda_guardar(body.referencia, body.precio, body.activo)
 
 
 class ReferenciaBody(BaseModel):
@@ -55,3 +56,13 @@ class ReferenciaBody(BaseModel):
 @_manejar_error
 async def eliminar(body: ReferenciaBody, usuario: Usuario = Depends(usuario_actual)):
     return await panel_agente.precio_tienda_eliminar(body.referencia)
+
+
+@router.get("/catalogo")
+async def catalogo(usuario: Usuario = Depends(usuario_actual)):
+    lista, conectado = await panel_agente.catalogo_tienda()
+    return {
+        "piezas": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "La web todavía no está conectada para el catálogo (o ninuma-agente no responde).",
+    }

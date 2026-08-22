@@ -1010,8 +1010,28 @@ export async function obtenerPreciosTienda(): Promise<RespuestaPreciosTienda> {
   return resp.data;
 }
 
-export async function guardarPrecioTienda(referencia: string, precio: number): Promise<void> {
-  await api.post('/api/precios-tienda/guardar', { referencia, precio });
+export async function guardarPrecioTienda(referencia: string, precio?: number, activo?: boolean): Promise<void> {
+  await api.post('/api/precios-tienda/guardar', { referencia, precio, activo });
+}
+
+export interface PiezaCatalogo {
+  numero: string;
+  nombre: string;
+  categoria: string;
+  imagen: string;
+  precio_contenido: number | null;
+  precio_efectivo: number;
+  activo: boolean;
+  tiene_override: boolean;
+}
+
+export interface RespuestaCatalogoTienda extends RespuestaConAviso<PiezaCatalogo> {
+  piezas: PiezaCatalogo[];
+}
+
+export async function obtenerCatalogoTienda(): Promise<RespuestaCatalogoTienda> {
+  const resp = await api.get('/api/precios-tienda/catalogo');
+  return resp.data;
 }
 
 export async function eliminarPrecioTienda(referencia: string): Promise<void> {

@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlbaranWizard } from '@/components/albaran-wizard';
 import { AnalisisFinanciero } from '@/components/analisis-financiero';
+import { EscanerQREntrada } from '@/components/escaner-qr-entrada';
 import { FacturasPendientesCobro } from '@/components/facturas-pendientes-cobro';
 import { IngresosGastos } from '@/components/ingresos-gastos';
 import { PreciosTienda } from '@/components/precios-tienda';
@@ -23,7 +24,7 @@ const fechaHoy = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numer
 const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 const fechaLargaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-type Vista = 'inicio' | 'nuevo-albaran' | 'analisis' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro';
+type Vista = 'inicio' | 'nuevo-albaran' | 'analisis' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr';
 
 // Réplica de panel._seccion_inicio: mismas 3 tarjetas, próxima entrega, acumulado
 // sin facturar, accesos rápidos reales (generar albarán/análisis/gastos) y Gestión
@@ -60,6 +61,7 @@ export default function InicioScreen() {
   if (vista === 'precios-tienda') return <PreciosTienda onVolver={() => setVista('inicio')} />;
   if (vista === 'usuarios') return <UsuariosPanel onVolver={() => setVista('inicio')} />;
   if (vista === 'facturas-cobro') return <FacturasPendientesCobro onVolver={() => setVista('inicio')} />;
+  if (vista === 'escanear-qr') return <EscanerQREntrada onVolver={() => setVista('inicio')} />;
 
   const proxima = f?.proxima_entrega;
   const sub2Proxima = proxima
@@ -188,6 +190,7 @@ export default function InicioScreen() {
           <SectionLabel>Gestión</SectionLabel>
           <ListCard>
             <ListRow onPress={() => setVista('precios-tienda')} title="🏷️ Precios de la tienda" subtitle="Precio público, se refleja en la web" />
+            <ListRow onPress={() => setVista('escanear-qr')} title="🎟️ Validar entrada" subtitle="Escanea el QR de una cena/edición" />
             <ListRow last onPress={() => setVista('usuarios')} title="👤 Gestionar usuarios" subtitle="Cuentas del panel" />
           </ListCard>
 
