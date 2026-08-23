@@ -87,6 +87,23 @@ class IntentoFallido(Base):
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora)
 
 
+class DispositivoPush(Base):
+    """Token de notificaciones push de Expo por dispositivo -- un usuario puede tener
+    varios (móvil + tablet, o reinstaló la app), así que la clave única es el propio
+    token, no el usuario. registrar_token hace upsert: mismo token, usuario/plataforma
+    actualizados. Ver app/routers/notificaciones.py -- pedido explícito de Ariadna
+    2026-08-23 para poder ir dejando los avisos de Telegram por notificaciones push."""
+
+    __tablename__ = "dispositivos_push"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    usuario_id: Mapped[str] = mapped_column(String, ForeignKey("usuarios.id"))
+    expo_push_token: Mapped[str] = mapped_column(String, unique=True, index=True)
+    plataforma: Mapped[str | None] = mapped_column(String, nullable=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora, onupdate=_ahora)
+
+
 class Cliente(Base):
     """Clientes propios de NINUMAPP -- deliberadamente independiente de `clientes` en
     la Supabase de la web (WBD): esta tabla vive solo en la base de datos de NINUMAPP,

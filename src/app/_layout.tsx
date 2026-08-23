@@ -10,6 +10,7 @@ import { LoginScreen } from '@/components/login-screen';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useColaPendiente } from '@/hooks/use-cola-pendiente';
+import { useRegistrarPush } from '@/hooks/use-registrar-push';
 import { useTheme } from '@/hooks/use-theme';
 import { iniciarDespachoAutomatico } from '@/lib/action-queue';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
@@ -51,6 +52,8 @@ function Contenido() {
   useEffect(() => {
     if (estado === 'autenticado') return iniciarDespachoAutomatico();
   }, [estado]);
+
+  useRegistrarPush(estado === 'autenticado');
 
   if (estado === 'cargando') {
     return (

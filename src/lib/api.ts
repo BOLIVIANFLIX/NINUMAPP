@@ -910,6 +910,12 @@ export async function obtenerTrimestresRecientes(anio: number, trimestre: number
   return resp.data;
 }
 
+// --- Notificaciones push ------------------------------------------------------
+
+export async function registrarTokenPush(token: string, plataforma: string): Promise<void> {
+  await api.post('/api/notificaciones/registrar-token', { token, plataforma });
+}
+
 export function urlTicketsPeriodo(desde: string, hasta: string): string {
   return `${API_URL}/api/inventario/tickets-periodo?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`;
 }
