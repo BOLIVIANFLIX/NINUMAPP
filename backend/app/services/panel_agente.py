@@ -373,6 +373,14 @@ async def iva_trimestre(anio: int, trimestre: int) -> dict | None:
     return await _get_q("/api/ninumapp/iva-trimestre", {"anio": anio, "trimestre": trimestre})
 
 
+async def modelo_130(anio: int, trimestre: int) -> dict | None:
+    return await _get_q("/api/ninumapp/modelo-130", {"anio": anio, "trimestre": trimestre})
+
+
+async def trimestres_recientes(anio: int, trimestre: int) -> list[dict] | None:
+    return await _get_q("/api/ninumapp/trimestres-recientes", {"anio": anio, "trimestre": trimestre})
+
+
 async def inventario_tickets_periodo(desde: str, hasta: str) -> tuple[bytes, str] | None:
     if not _configurada():
         return None

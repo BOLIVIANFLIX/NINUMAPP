@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Ficha, FilaFicha, KpiCard, KpiRow, ListCard, ListRow, Segmented } from '@/components/ui/panel';
+import { Ficha, FilaFicha, KpiCard, KpiRow, ListCard, ListRow, SectionLabel, Segmented } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { tokenStore } from '@/lib/token-store';
@@ -20,6 +20,8 @@ import {
   obtenerAnalisisRecetas,
   obtenerAnalisisResumen,
   obtenerIvaTrimestre,
+  obtenerModelo130,
+  obtenerTrimestresRecientes,
   urlTicketsPeriodo,
   type PeriodoAnalisis,
   type RecetaCoste,
@@ -286,6 +288,11 @@ function TabPrecios() {
   );
 }
 
+function formatearFechaLimite(iso: string): string {
+  const [a, m, d] = iso.split('-');
+  return `${d}/${m}/${a}`;
+}
+
 function TabImpuestos() {
   const theme = useTheme();
   const [{ anio, trimestre }, setPeriodo] = useState(trimestreActual());
@@ -294,6 +301,15 @@ function TabImpuestos() {
     queryKey: ['analisis', 'iva-trimestre', anio, trimestre],
     queryFn: () => obtenerIvaTrimestre(anio, trimestre),
   });
+  const modelo130 = useQuery({
+    queryKey: ['analisis', 'modelo-130', anio, trimestre],
+    queryFn: () => obtenerModelo130(anio, trimestre),
+  });
+  const comparativa = useQuery({
+    queryKey: ['analisis', 'trimestres-recientes', anio, trimestre],
+    queryFn: () => obtenerTrimestresRecientes(anio, trimestre),
+  });
+  const totalTrimestre = (data?.iva_a_pagar_estimado ?? 0) + (modelo130.data?.pago_trimestre_estimado ?? 0);
 
   function cambiarTrimestre(delta: number) {
     let t = trimestre + delta;
@@ -338,6 +354,11 @@ function TabImpuestos() {
 
       {data && (
         <>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.aviso}>
+            📅 Plazo para presentar 303 y 130: <ThemedText type="smallBold">{formatearFechaLimite(data.fecha_limite)}</ThemedText>
+          </ThemedText>
+
+          <SectionLabel>Modelo 303 · IVA</SectionLabel>
           <KpiRow>
             <KpiCard label="IVA repercutido" value={eur.format(data.iva_repercutido)} wide />
             <KpiCard label="IVA soportado" value={eur.format(data.iva_soportado)} />
@@ -350,7 +371,7 @@ function TabImpuestos() {
 
           <Ficha style={styles.fichaDesglose}>
             <FilaFicha etiqueta="Base imponible repercutida" valor={eur.format(data.base_imponible_repercutida)} />
-            <FilaFicha etiqueta={`Documentos (B2B/Grand Folies)`} valor={String(data.documentos_repercutido)} />
+            <FilaFicha etiqueta="Documentos (todos los canales)" valor={String(data.documentos_repercutido)} />
             <FilaFicha etiqueta="Base imponible soportada" valor={eur.format(data.base_imponible_soportada)} />
             <FilaFicha etiqueta="Gastos con IVA leído" valor={String(data.gastos_con_iva_leido)} />
             <FilaFicha etiqueta="Gastos sin IVA leído" valor={String(data.gastos_sin_iva_leido)} last />
@@ -361,8 +382,28 @@ function TabImpuestos() {
               ⚠ {data.gastos_sin_iva_leido} gasto(s) de este trimestre no tienen el IVA desglosado (el ticket no lo mostraba, o se metió a mano) -- el IVA soportado real puede ser mayor.
             </ThemedText>
           )}
+
+          <SectionLabel>Modelo 130 · IRPF</SectionLabel>
+          {modelo130.isLoading && <ActivityIndicator color={theme.accent} style={styles.centro} />}
+          {!!modelo130.error && <ThemedText type="small" themeColor="danger">{mensajeError(modelo130.error)}</ThemedText>}
+          {modelo130.data && (
+            <>
+              <KpiRow>
+                <KpiCard label="Rendimiento neto acumulado (desde enero)" value={eur.format(modelo130.data.rendimiento_neto_acumulado)} wide />
+                <KpiCard label="A pagar este trimestre" value={eur.format(modelo130.data.pago_trimestre_estimado)} wide />
+              </KpiRow>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.aviso}>
+                Regla general (20% del rendimiento neto acumulado, menos lo ya ingresado este año). No contempla minoraciones especiales.
+              </ThemedText>
+            </>
+          )}
+
+          <Ficha style={styles.fichaDesglose}>
+            <FilaFicha etiqueta="Total a ingresar este trimestre (303 + 130)" valor={eur.format(totalTrimestre)} last />
+          </Ficha>
+
           <ThemedText type="small" themeColor="textSecondary" style={styles.aviso}>
-            No sustituye a tu gestor: es una comprobación rápida con tus propios datos. Todavía no incluye la tienda online, solo B2B/Grand Folies y los tickets escaneados.
+            No sustituye a tu gestor: es una comprobación rápida con tus propios datos, en criterio de caja para el IVA. Incluye B2B, tienda web y apuntes de particular a mano -- todo lo que aparece como cobrado en este trimestre.
           </ThemedText>
 
           <Pressable
@@ -371,6 +412,23 @@ function TabImpuestos() {
             style={[styles.botonDescargarTickets, { backgroundColor: theme.backgroundElement, opacity: descargando ? 0.6 : 1 }]}>
             <ThemedText type="smallBold">{descargando ? 'Preparando…' : '📎 Descargar tickets del trimestre'}</ThemedText>
           </Pressable>
+
+          <SectionLabel>Comparativa de trimestres</SectionLabel>
+          {comparativa.isLoading && <ActivityIndicator color={theme.accent} style={styles.centro} />}
+          {!!comparativa.error && <ThemedText type="small" themeColor="danger">{mensajeError(comparativa.error)}</ThemedText>}
+          {!!comparativa.data?.length && (
+            <ListCard>
+              {comparativa.data.map((t, i) => (
+                <ListRow
+                  key={`${t.anio}-${t.trimestre}`}
+                  last={i === comparativa.data!.length - 1}
+                  title={`${t.anio} · T${t.trimestre}`}
+                  subtitle={`303: ${eur.format(t.iva_a_pagar_estimado)} · 130: ${eur.format(t.pago_130_estimado)}`}
+                  right={<ThemedText type="smallBold">{eur.format(t.iva_a_pagar_estimado + t.pago_130_estimado)}</ThemedText>}
+                />
+              ))}
+            </ListCard>
+          )}
         </>
       )}
     </>

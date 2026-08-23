@@ -75,8 +75,26 @@ async def guardar_tiempo(body: GuardarTiempoBody, usuario: Usuario = Depends(usu
 @router.get("/iva-trimestre")
 async def iva_trimestre(anio: int, trimestre: int, usuario: Usuario = Depends(usuario_actual)):
     """No sustituye al gestor -- ver ninuma-agente/inventario.iva_trimestre para el
-    alcance real (todavía no incluye la tienda online)."""
+    alcance real (todos los canales, criterio de caja, desde 2026-08-23)."""
     datos = await panel_agente.iva_trimestre(anio, trimestre)
     if datos is None:
         raise HTTPException(status_code=502, detail="No se ha podido calcular el IVA del trimestre.")
+    return datos
+
+
+@router.get("/modelo-130")
+async def modelo_130(anio: int, trimestre: int, usuario: Usuario = Depends(usuario_actual)):
+    """No sustituye al gestor -- ver ninuma-agente/inventario.modelo_130 para el
+    alcance real (regla general, sin minoraciones especiales ni retenciones)."""
+    datos = await panel_agente.modelo_130(anio, trimestre)
+    if datos is None:
+        raise HTTPException(status_code=502, detail="No se ha podido calcular el modelo 130 del trimestre.")
+    return datos
+
+
+@router.get("/trimestres-recientes")
+async def trimestres_recientes(anio: int, trimestre: int, usuario: Usuario = Depends(usuario_actual)):
+    datos = await panel_agente.trimestres_recientes(anio, trimestre)
+    if datos is None:
+        raise HTTPException(status_code=502, detail="No se ha podido calcular la comparativa de trimestres.")
     return datos

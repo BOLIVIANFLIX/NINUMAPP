@@ -857,10 +857,11 @@ export async function obtenerAnalisisPrecios(): Promise<SubidaPrecio[]> {
   return resp.data.avisos;
 }
 
-// --- Impuestos / IVA trimestral ---------------------------------------------------
-// No sustituye al gestor -- ver ninuma-agente/inventario.iva_trimestre para el
-// alcance real (todavía no incluye la tienda online, solo B2B/Grand Folies + los
-// gastos con IVA leído por el escáner de tickets).
+// --- Impuestos / IVA trimestral + Modelo 130 ---------------------------------------
+// No sustituyen al gestor -- ver ninuma-agente/inventario.py (iva_trimestre/
+// modelo_130) para el alcance real: todos los canales (B2B, tienda web, apuntes de
+// particular), criterio de caja para el IVA, devengo (regla general, sin
+// minoraciones especiales ni retenciones) para el 130.
 
 export interface IvaTrimestre {
   anio: number;
@@ -875,10 +876,37 @@ export interface IvaTrimestre {
   gastos_con_iva_leido: number;
   gastos_sin_iva_leido: number;
   iva_a_pagar_estimado: number;
+  fecha_limite: string;
 }
 
 export async function obtenerIvaTrimestre(anio: number, trimestre: number): Promise<IvaTrimestre> {
   const resp = await api.get('/api/analisis/iva-trimestre', { params: { anio, trimestre } });
+  return resp.data;
+}
+
+export interface Modelo130 {
+  anio: number;
+  trimestre: number;
+  rendimiento_neto_acumulado: number;
+  pago_fraccionado_acumulado: number;
+  pago_trimestre_estimado: number;
+  fecha_limite: string;
+}
+
+export async function obtenerModelo130(anio: number, trimestre: number): Promise<Modelo130> {
+  const resp = await api.get('/api/analisis/modelo-130', { params: { anio, trimestre } });
+  return resp.data;
+}
+
+export interface TrimestreResumen {
+  anio: number;
+  trimestre: number;
+  iva_a_pagar_estimado: number;
+  pago_130_estimado: number;
+}
+
+export async function obtenerTrimestresRecientes(anio: number, trimestre: number): Promise<TrimestreResumen[]> {
+  const resp = await api.get('/api/analisis/trimestres-recientes', { params: { anio, trimestre } });
   return resp.data;
 }
 
