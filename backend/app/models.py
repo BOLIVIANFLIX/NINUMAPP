@@ -104,6 +104,19 @@ class DispositivoPush(Base):
     actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora, onupdate=_ahora)
 
 
+class PreferenciaNotificacion(Base):
+    """Interruptor por tipo de aviso -- si no hay fila para un `tipo`, se usa el
+    valor por defecto de _DEFAULTS en routers/notificaciones.py (los avisos ya
+    migrados nacen activados, los nuevos apagados hasta que Ariadna los active a
+    mano). Global, no por usuario -- solo ella usa esto hoy."""
+
+    __tablename__ = "preferencias_notificacion"
+
+    tipo: Mapped[str] = mapped_column(String, primary_key=True)
+    activo: Mapped[bool] = mapped_column(default=True)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora, onupdate=_ahora)
+
+
 class Cliente(Base):
     """Clientes propios de NINUMAPP -- deliberadamente independiente de `clientes` en
     la Supabase de la web (WBD): esta tabla vive solo en la base de datos de NINUMAPP,

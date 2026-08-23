@@ -930,6 +930,21 @@ export async function registrarTokenPush(token: string, plataforma: string): Pro
   await api.post('/api/notificaciones/registrar-token', { token, plataforma });
 }
 
+export interface PreferenciaNotificacion {
+  tipo: string;
+  etiqueta: string;
+  activo: boolean;
+}
+
+export async function obtenerPreferenciasNotificaciones(): Promise<PreferenciaNotificacion[]> {
+  const resp = await api.get('/api/notificaciones/preferencias');
+  return resp.data;
+}
+
+export async function guardarPreferenciaNotificacion(tipo: string, activo: boolean): Promise<void> {
+  await api.post('/api/notificaciones/preferencias', { tipo, activo });
+}
+
 export function urlTicketsPeriodo(desde: string, hasta: string): string {
   return `${API_URL}/api/inventario/tickets-periodo?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`;
 }

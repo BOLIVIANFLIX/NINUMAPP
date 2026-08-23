@@ -11,6 +11,7 @@ import { EscanerQREntrada } from '@/components/escaner-qr-entrada';
 import { FacturasPendientesCobro } from '@/components/facturas-pendientes-cobro';
 import { IngresosGastos } from '@/components/ingresos-gastos';
 import { PreciosTienda } from '@/components/precios-tienda';
+import { PreferenciasAvisos } from '@/components/preferencias-avisos';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { GradientCard, KpiCard, KpiRow, ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
@@ -25,7 +26,7 @@ const fechaHoy = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numer
 const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 const fechaLargaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'analisis-impuestos' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr';
+type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'analisis-impuestos' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr' | 'preferencias-avisos';
 
 // Réplica de panel._seccion_inicio: mismas 3 tarjetas, próxima entrega, acumulado
 // sin facturar, accesos rápidos reales (generar albarán/análisis/gastos) y Gestión
@@ -77,6 +78,7 @@ export default function InicioScreen() {
   if (vista === 'analisis-impuestos') return <AnalisisFinanciero onVolver={() => setVista('inicio')} subInicial="Impuestos" />;
   if (vista === 'ingresos') return <IngresosGastos onVolver={() => setVista('inicio')} />;
   if (vista === 'precios-tienda') return <PreciosTienda onVolver={() => setVista('inicio')} />;
+  if (vista === 'preferencias-avisos') return <PreferenciasAvisos onVolver={() => setVista('inicio')} />;
   if (vista === 'usuarios') return <UsuariosPanel onVolver={() => setVista('inicio')} />;
   if (vista === 'facturas-cobro') return <FacturasPendientesCobro onVolver={() => setVista('inicio')} />;
   if (vista === 'escanear-qr') return <EscanerQREntrada onVolver={() => setVista('inicio')} />;
@@ -223,6 +225,7 @@ export default function InicioScreen() {
           <ListCard>
             <ListRow onPress={() => setVista('precios-tienda')} title="🏷️ Precios de la tienda" subtitle="Precio público, se refleja en la web" />
             <ListRow onPress={() => setVista('escanear-qr')} title="🎟️ Validar entrada" subtitle="Escanea el QR de una cena/edición" />
+            <ListRow onPress={() => setVista('preferencias-avisos')} title="🔔 Avisos por notificación" subtitle="Qué avisos recibir en el móvil" />
             <ListRow last onPress={() => setVista('usuarios')} title="👤 Gestionar usuarios" subtitle="Cuentas del panel" />
           </ListCard>
 
