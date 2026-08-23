@@ -49,7 +49,7 @@ type Vista =
   | { tipo: 'clientes' }
   | { tipo: 'cliente-profesional'; nombre: string }
   | { tipo: 'documentos' }
-  | { tipo: 'documento'; numero: string }
+  | { tipo: 'documento'; numeros: string[]; indice: number }
   | { tipo: 'form-pedido'; pedido: PedidoPropio | null }
   | { tipo: 'elegir-documento' }
   | { tipo: 'nuevo-albaran' };
@@ -103,7 +103,16 @@ export default function PedidosScreen() {
   }
   if (vista.tipo === 'documentos') return <DocumentosTodos onVolver={() => setVista({ tipo: 'principal' })} />;
   if (vista.tipo === 'documento') {
-    return <DocumentoDetalle numero={vista.numero} etiquetaVolver="Pedidos" onVolver={() => setVista({ tipo: 'principal' })} />;
+    const { numeros, indice } = vista;
+    return (
+      <DocumentoDetalle
+        numero={numeros[indice]}
+        etiquetaVolver="Pedidos"
+        onVolver={() => setVista({ tipo: 'principal' })}
+        onAnterior={indice > 0 ? () => setVista({ tipo: 'documento', numeros, indice: indice - 1 }) : undefined}
+        onSiguiente={indice < numeros.length - 1 ? () => setVista({ tipo: 'documento', numeros, indice: indice + 1 }) : undefined}
+      />
+    );
   }
   if (vista.tipo === 'form-pedido') {
     return <PedidoPropioFormulario pedido={vista.pedido} onVolver={() => setVista({ tipo: 'principal' })} />;
@@ -212,7 +221,7 @@ export default function PedidosScreen() {
                         <ListRow
                           key={a.numero}
                           last={i === g.albaranes.length - 1}
-                          onPress={() => setVista({ tipo: 'documento', numero: a.numero })}
+                          onPress={() => setVista({ tipo: 'documento', numeros: g.albaranes.map((x) => x.numero), indice: i })}
                           title={a.numero}
                           subtitle={`${g.cliente} · ${fecha.format(new Date(a.creado_en))}`}
                           right={<ThemedText type="smallBold">{eur.format(a.total)}</ThemedText>}

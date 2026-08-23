@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Dot, KpiCard, KpiRow, ListCard, ListRow } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import { crearGasto, eliminarGasto, marcarGastoPagado, mensajeError, obtenerIngresosDelMes } from '@/lib/api';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -46,13 +47,22 @@ export function IngresosGastos({ onVolver }: { onVolver: () => void }) {
   const ahora = new Date();
   const [anio, setAnio] = useState(ahora.getFullYear());
   const [mes, setMes] = useState(ahora.getMonth() + 1);
-  const [numeroAbierto, setNumeroAbierto] = useState<string | null>(null);
+  const [indiceAbierto, setIndiceAbierto] = useState<number | null>(null);
+  useVolverAtras(indiceAbierto === null, () => setIndiceAbierto(null));
   const mesParam = `${anio}-${String(mes).padStart(2, '0')}`;
 
   const { data, isLoading, error } = useQuery({ queryKey: ['ingresos', mesParam], queryFn: () => obtenerIngresosDelMes(mesParam) });
 
-  if (numeroAbierto) {
-    return <DocumentoDetalle numero={numeroAbierto} etiquetaVolver="Ingresos y gastos" onVolver={() => setNumeroAbierto(null)} />;
+  if (indiceAbierto !== null && data?.documentos.length) {
+    return (
+      <DocumentoDetalle
+        numero={data.documentos[indiceAbierto].numero_documento}
+        etiquetaVolver="Ingresos y gastos"
+        onVolver={() => setIndiceAbierto(null)}
+        onAnterior={indiceAbierto > 0 ? () => setIndiceAbierto(indiceAbierto - 1) : undefined}
+        onSiguiente={indiceAbierto < data.documentos.length - 1 ? () => setIndiceAbierto(indiceAbierto + 1) : undefined}
+      />
+    );
   }
 
   function invalidar() {
@@ -108,7 +118,7 @@ export function IngresosGastos({ onVolver }: { onVolver: () => void }) {
                     <ListRow
                       key={d.numero_documento}
                       last={i === data.documentos.length - 1}
-                      onPress={() => setNumeroAbierto(d.numero_documento)}
+                      onPress={() => setIndiceAbierto(i)}
                       title={d.numero_documento}
                       subtitle={`${d.cliente} · ${new Date(d.fecha).toLocaleDateString('es-ES')}`}
                       right={<ThemedText type="smallBold">{eur.format(d.total)}</ThemedText>}

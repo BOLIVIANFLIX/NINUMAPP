@@ -4,7 +4,7 @@ import { getContentUriAsync, StorageAccessFramework } from 'expo-file-system/leg
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -66,12 +66,18 @@ export function DocumentoDetalle({
     setAccionEnCurso('ver');
     try {
       const archivo = await descargarACache(numero, 'pdf');
-      const contentUri = await getContentUriAsync(archivo.uri);
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-        data: contentUri,
-        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-        type: MIME.pdf,
-      });
+      if (Platform.OS === 'android') {
+        const contentUri = await getContentUriAsync(archivo.uri);
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          type: MIME.pdf,
+        });
+      } else if (await Sharing.isAvailableAsync()) {
+        // iOS no tiene un ACTION_VIEW equivalente -- el selector nativo aquí sí
+        // ofrece "Vista rápida"/abrir con un visor, no solo "compartir con...".
+        await Sharing.shareAsync(archivo.uri);
+      }
     } catch {
       Alert.alert('No se ha podido abrir', 'Inténtalo de nuevo en unos segundos.');
     } finally {
@@ -95,12 +101,18 @@ export function DocumentoDetalle({
     setAccionEnCurso(tipo);
     try {
       const archivo = await descargarACache(numero, tipo);
-      const permiso = await StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (!permiso.granted) return;
-      const base64 = await StorageAccessFramework.readAsStringAsync(archivo.uri, { encoding: 'base64' });
-      const destinoUri = await StorageAccessFramework.createFileAsync(permiso.directoryUri, `Albaran_${numero}`, MIME[tipo]);
-      await StorageAccessFramework.writeAsStringAsync(destinoUri, base64, { encoding: 'base64' });
-      Alert.alert('Descargado', `Albaran_${numero}.${tipo} guardado correctamente.`);
+      if (Platform.OS === 'android') {
+        const permiso = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permiso.granted) return;
+        const base64 = await StorageAccessFramework.readAsStringAsync(archivo.uri, { encoding: 'base64' });
+        const destinoUri = await StorageAccessFramework.createFileAsync(permiso.directoryUri, `Albaran_${numero}`, MIME[tipo]);
+        await StorageAccessFramework.writeAsStringAsync(destinoUri, base64, { encoding: 'base64' });
+        Alert.alert('Descargado', `Albaran_${numero}.${tipo} guardado correctamente.`);
+      } else if (await Sharing.isAvailableAsync()) {
+        // Storage Access Framework es solo Android -- en iOS el selector nativo ya
+        // ofrece "Guardar en Archivos", que es el equivalente real a descargar.
+        await Sharing.shareAsync(archivo.uri);
+      }
     } catch {
       Alert.alert('No se ha podido descargar', 'Inténtalo de nuevo en unos segundos.');
     } finally {

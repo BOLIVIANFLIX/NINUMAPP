@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import { cerrarCobroMensual, marcarCobrado, mensajeError, obtenerFacturasPendientesCobro } from '@/lib/api';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -19,12 +20,21 @@ const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short',
 export function FacturasPendientesCobro({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const [numeroAbierto, setNumeroAbierto] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<{ numeros: string[]; indice: number } | null>(null);
+  useVolverAtras(abierto === null, () => setAbierto(null));
   const [cobrando, setCobrando] = useState<string | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ['facturas-pendientes-cobro'], queryFn: obtenerFacturasPendientesCobro });
 
-  if (numeroAbierto) {
-    return <DocumentoDetalle numero={numeroAbierto} etiquetaVolver="Facturas pendientes" onVolver={() => setNumeroAbierto(null)} />;
+  if (abierto) {
+    return (
+      <DocumentoDetalle
+        numero={abierto.numeros[abierto.indice]}
+        etiquetaVolver="Facturas pendientes"
+        onVolver={() => setAbierto(null)}
+        onAnterior={abierto.indice > 0 ? () => setAbierto({ ...abierto, indice: abierto.indice - 1 }) : undefined}
+        onSiguiente={abierto.indice < abierto.numeros.length - 1 ? () => setAbierto({ ...abierto, indice: abierto.indice + 1 }) : undefined}
+      />
+    );
   }
 
   function invalidar() {
@@ -98,7 +108,7 @@ export function FacturasPendientesCobro({ onVolver }: { onVolver: () => void }) 
                   <ListRow
                     key={a.numero}
                     last={i === g.albaranes.length - 1}
-                    onPress={() => setNumeroAbierto(a.numero)}
+                    onPress={() => setAbierto({ numeros: g.albaranes.map((x) => x.numero), indice: i })}
                     title={a.numero}
                     subtitle={fecha.format(new Date(a.creado_en))}
                     right={<ThemedText type="small" themeColor="textSecondary">{eur.format(a.total)}</ThemedText>}
@@ -128,7 +138,7 @@ export function FacturasPendientesCobro({ onVolver }: { onVolver: () => void }) 
                   <ListRow
                     key={a.numero}
                     last={i === data.directas.length - 1}
-                    onPress={() => setNumeroAbierto(a.numero)}
+                    onPress={() => setAbierto({ numeros: data!.directas.map((x) => x.numero), indice: i })}
                     title={`${a.cliente} · ${a.numero}`}
                     subtitle={fecha.format(new Date(a.creado_en))}
                     right={

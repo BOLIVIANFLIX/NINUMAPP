@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Dot, Ficha, FilaFicha, ListCard, ListRow } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
   crearProductoCatalogo,
   editarClienteProfesional,
@@ -24,7 +25,7 @@ import {
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
 
-type Vista = { tipo: 'detalle' } | { tipo: 'editar' } | { tipo: 'documento'; numero: string };
+type Vista = { tipo: 'detalle' } | { tipo: 'editar' } | { tipo: 'documento'; numeros: string[]; indice: number };
 
 // Réplica de /panel/clientes/{nombre} (+ /editar) -- ficha, historial de albaranes
 // (tocar uno abre DocumentoDetalle) y productos con último precio.
@@ -32,10 +33,20 @@ export function ClienteProfesionalDetalle({ nombre, onVolver }: { nombre: string
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [vista, setVista] = useState<Vista>({ tipo: 'detalle' });
+  useVolverAtras(vista.tipo === 'detalle', () => setVista({ tipo: 'detalle' }));
   const { data, isLoading, error } = useQuery({ queryKey: ['cliente-profesional', nombre], queryFn: () => obtenerClienteDetalle(nombre) });
 
   if (vista.tipo === 'documento') {
-    return <DocumentoDetalle numero={vista.numero} etiquetaVolver={nombre} onVolver={() => setVista({ tipo: 'detalle' })} />;
+    const { numeros, indice } = vista;
+    return (
+      <DocumentoDetalle
+        numero={numeros[indice]}
+        etiquetaVolver={nombre}
+        onVolver={() => setVista({ tipo: 'detalle' })}
+        onAnterior={indice > 0 ? () => setVista({ tipo: 'documento', numeros, indice: indice - 1 }) : undefined}
+        onSiguiente={indice < numeros.length - 1 ? () => setVista({ tipo: 'documento', numeros, indice: indice + 1 }) : undefined}
+      />
+    );
   }
 
   if (vista.tipo === 'editar' && data) {
@@ -99,7 +110,7 @@ export function ClienteProfesionalDetalle({ nombre, onVolver }: { nombre: string
                     <ListRow
                       key={a.numero}
                       last={i === data.albaranes.length - 1}
-                      onPress={() => setVista({ tipo: 'documento', numero: a.numero })}
+                      onPress={() => setVista({ tipo: 'documento', numeros: data.albaranes.map((x) => x.numero), indice: i })}
                       left={<Dot color={a.cobrado ? 'success' : 'warning'} />}
                       title={a.numero}
                       subtitle={`${fecha.format(new Date(a.creado_en))} · ${a.estado}`}
