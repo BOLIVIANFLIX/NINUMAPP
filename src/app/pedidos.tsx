@@ -85,6 +85,11 @@ export default function PedidosScreen() {
     setVista({ tipo: 'principal' });
     queryClient.invalidateQueries({ queryKey: ['resumen'] });
     queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
+    // Sin esto el total de "resumen" se refrescaba pero el desglose por albarán se
+    // quedaba con la caché anterior -- un albarán nuevo aparecía sumado al total sin
+    // aparecer en la lista (bug real visto el 2026-08-23: "3 albarán(es)" con solo 2
+    // filas listadas).
+    queryClient.invalidateQueries({ queryKey: ['acumulado-mensual-itemizado'] });
   }
 
   if (vista.tipo === 'clientes') return <Clientes onVolver={() => setVista({ tipo: 'principal' })} />;

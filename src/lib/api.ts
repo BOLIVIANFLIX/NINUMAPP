@@ -954,6 +954,7 @@ export interface DocumentoHistorico {
   cliente: string;
   estado: string;
   creado_en: string;
+  total: number | null;
 }
 
 export interface RespuestaTodosDocumentos extends RespuestaConAviso<DocumentoHistorico> {

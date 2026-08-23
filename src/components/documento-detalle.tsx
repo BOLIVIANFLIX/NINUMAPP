@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -9,28 +11,37 @@ import { Ficha, FilaFicha } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mensajeError, obtenerDocumentoDetalle, urlDocumentoArchivo } from '@/lib/api';
+import { tokenStore } from '@/lib/token-store';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
-// Réplica de /panel/pedidos/documento -- ver "Ver documento" (abre a pantalla
-// completa vía Linking.openURL, mismo criterio que panel.py: un <iframe> no pinta
-// PDFs de forma fiable dentro de una WebView/TWA) y "Compartir" (Share nativo).
+// Réplica de /panel/pedidos/documento -- "Ver documento"/"PDF"/"Word"/"Compartir"
+// se abren TODOS igual: descargando primero el archivo con el token de la app (el
+// endpoint exige sesión vía Authorization, ver auth.usuario_actual) y entregándolo
+// después al selector nativo (Sharing.shareAsync, que en Android/iOS también ofrece
+// "abrir con..."). Antes se pasaba la URL protegida directa a Linking.openURL/
+// Share.share -- el navegador o la app de destino no llevan el token de la app, así
+// que siempre daba "Falta iniciar sesión" en vez de abrir el documento (bug real
+// descubierto el 2026-08-23).
 export function DocumentoDetalle({ numero, etiquetaVolver, onVolver }: { numero: string; etiquetaVolver: string; onVolver: () => void }) {
   const theme = useTheme();
-  const [compartiendo, setCompartiendo] = useState(false);
+  const [descargando, setDescargando] = useState<'pdf' | 'docx' | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ['documento', numero], queryFn: () => obtenerDocumentoDetalle(numero) });
 
-  const urlPdf = urlDocumentoArchivo(numero, 'pdf');
-  const urlDocx = urlDocumentoArchivo(numero, 'docx');
-
-  async function compartir() {
-    setCompartiendo(true);
+  async function abrir(tipo: 'pdf' | 'docx') {
+    setDescargando(tipo);
     try {
-      await Share.share({ url: urlPdf, message: `Albarán ${numero}: ${urlPdf}` });
+      const token = tokenStore.getAccessToken();
+      const destino = new File(Paths.cache, `albaran-${numero}.${tipo}`);
+      const archivo = await File.downloadFileAsync(urlDocumentoArchivo(numero, tipo), destino, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        idempotent: true,
+      });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(archivo.uri);
     } catch {
-      // cancelado por el usuario -- no interrumpir con un error
+      Alert.alert('No se ha podido abrir', 'Inténtalo de nuevo en unos segundos.');
     } finally {
-      setCompartiendo(false);
+      setDescargando(null);
     }
   }
 
@@ -75,29 +86,33 @@ export function DocumentoDetalle({ numero, etiquetaVolver, onVolver }: { numero:
                 </Ficha>
               )}
 
-              <Pressable onPress={() => Linking.openURL(urlPdf)} style={[styles.botonVer, { backgroundColor: theme.accent }]}>
-                <ThemedText type="smallBold" style={{ color: '#fff' }}>
-                  👁️ Ver documento
-                </ThemedText>
+              <Pressable onPress={() => abrir('pdf')} disabled={!!descargando} style={[styles.botonVer, { backgroundColor: theme.accent, opacity: descargando ? 0.5 : 1 }]}>
+                {descargando === 'pdf' ? <ActivityIndicator color="#fff" /> : (
+                  <ThemedText type="smallBold" style={{ color: '#fff' }}>
+                    👁️ Ver documento
+                  </ThemedText>
+                )}
               </Pressable>
 
               <View style={styles.filaBotones}>
-                <Pressable onPress={compartir} disabled={compartiendo} style={[styles.botonCompartir, { backgroundColor: theme.backgroundElement, opacity: compartiendo ? 0.5 : 1 }]}>
-                  {compartiendo ? <ActivityIndicator color={theme.accent} /> : (
-                    <ThemedText type="smallBold">📤 Compartir</ThemedText>
-                  )}
+                <Pressable onPress={() => abrir('pdf')} disabled={!!descargando} style={[styles.botonCompartir, { backgroundColor: theme.backgroundElement, opacity: descargando ? 0.5 : 1 }]}>
+                  <ThemedText type="smallBold">📤 Compartir</ThemedText>
                 </Pressable>
               </View>
               <View style={styles.filaBotones}>
-                <Pressable onPress={() => Linking.openURL(urlPdf)} style={[styles.botonDescargar, { backgroundColor: theme.backgroundElement }]}>
-                  <ThemedText type="small" style={{ fontWeight: '700' }}>
-                    ⬇️ PDF
-                  </ThemedText>
+                <Pressable onPress={() => abrir('pdf')} disabled={!!descargando} style={[styles.botonDescargar, { backgroundColor: theme.backgroundElement, opacity: descargando ? 0.5 : 1 }]}>
+                  {descargando === 'pdf' ? <ActivityIndicator color={theme.accent} /> : (
+                    <ThemedText type="small" style={{ fontWeight: '700' }}>
+                      ⬇️ PDF
+                    </ThemedText>
+                  )}
                 </Pressable>
-                <Pressable onPress={() => Linking.openURL(urlDocx)} style={[styles.botonDescargar, { backgroundColor: theme.backgroundElement }]}>
-                  <ThemedText type="small" style={{ fontWeight: '700' }}>
-                    ⬇️ Word
-                  </ThemedText>
+                <Pressable onPress={() => abrir('docx')} disabled={!!descargando} style={[styles.botonDescargar, { backgroundColor: theme.backgroundElement, opacity: descargando ? 0.5 : 1 }]}>
+                  {descargando === 'docx' ? <ActivityIndicator color={theme.accent} /> : (
+                    <ThemedText type="small" style={{ fontWeight: '700' }}>
+                      ⬇️ Word
+                    </ThemedText>
+                  )}
                 </Pressable>
               </View>
             </>

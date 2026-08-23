@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DocumentoDetalle } from '@/components/documento-detalle';
@@ -12,6 +12,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { mensajeError, obtenerTodosLosDocumentos } from '@/lib/api';
 
 const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
 // Réplica de /panel/pedidos/documentos -- historial completo, del más reciente al
 // más antiguo (a diferencia de "Documentos recientes" en Inicio, que solo son 6).
@@ -64,9 +65,12 @@ export function DocumentosTodos({ onVolver }: { onVolver: () => void }) {
                   title={d.numero}
                   subtitle={`${d.cliente} · ${d.estado}`}
                   right={
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {fecha.format(new Date(d.creado_en))}
-                    </ThemedText>
+                    <View style={styles.derecha}>
+                      <ThemedText type="smallBold">{d.total != null ? eur.format(d.total) : '—'}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {fecha.format(new Date(d.creado_en))}
+                      </ThemedText>
+                    </View>
                   }
                 />
               ))}
@@ -85,4 +89,5 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 26, lineHeight: 31, marginTop: Spacing.one },
   sub: { marginBottom: Spacing.two },
   centro: { marginTop: Spacing.five },
+  derecha: { alignItems: 'flex-end', gap: 2 },
 });
