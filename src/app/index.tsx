@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlbaranWizard } from '@/components/albaran-wizard';
 import { AnalisisFinanciero, trimestreActual } from '@/components/analisis-financiero';
+import { DocumentoDetalle } from '@/components/documento-detalle';
+import { DocumentosTodos } from '@/components/documentos-todos';
 import { ElegirTipoDocumento } from '@/components/elegir-tipo-documento';
 import { EscanerQREntrada } from '@/components/escaner-qr-entrada';
 import { FacturasPendientesCobro } from '@/components/facturas-pendientes-cobro';
@@ -18,6 +20,7 @@ import { GradientCard, KpiCard, KpiRow, ListCard, ListRow, SectionLabel } from '
 import { UsuariosPanel } from '@/components/usuarios-panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import { mensajeError, obtenerDocumentosRecientes, obtenerIvaTrimestre, obtenerResumen } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
@@ -26,7 +29,7 @@ const fechaHoy = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numer
 const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 const fechaLargaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'analisis-impuestos' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr' | 'preferencias-avisos';
+type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'analisis-impuestos' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr' | 'preferencias-avisos' | 'todos-documentos';
 
 // Réplica de panel._seccion_inicio: mismas 3 tarjetas, próxima entrega, acumulado
 // sin facturar, accesos rápidos reales (generar albarán/análisis/gastos) y Gestión
@@ -37,6 +40,18 @@ export default function InicioScreen() {
   const { cerrarSesion } = useAuth();
   const navigation = useNavigation();
   const [vista, setVista] = useState<Vista>('inicio');
+  // Documento abierto desde "Documentos recientes" -- índice (no solo el número)
+  // para poder movernos a "Anterior"/"Siguiente" dentro de esa misma lista, en el
+  // mismo orden cronológico en que ya se muestra (pedido explícito de Ariadna
+  // 2026-08-23: tocar cualquier documento de cualquier resumen debe abrirlo, con
+  // navegación al anterior/siguiente).
+  const [indiceDocAbierto, setIndiceDocAbierto] = useState<number | null>(null);
+
+  // Botón/gesto de "atrás" de Android -- vuelve a Inicio en vez de salir de la app
+  // (bug real: Ariadna, 2026-08-23). Si el hijo activo (p.ej. AlbaranWizard) tiene su
+  // propio paso interno, ÉL retrocede un paso primero -- ver useVolverAtras.
+  useVolverAtras(vista === 'inicio', () => setVista('inicio'));
+  useVolverAtras(indiceDocAbierto === null, () => setIndiceDocAbierto(null));
 
   // Al salir de la pestaña siempre se vuelve a la pantalla principal -- nunca se
   // queda "congelada" en el submenú donde estaba (las pestañas de abajo no se
@@ -68,6 +83,21 @@ export default function InicioScreen() {
   const hoy = fechaHoy.format(new Date());
   const f = resumen?.financiero;
 
+  if (indiceDocAbierto !== null && documentos.data?.documentos.length) {
+    const lista = documentos.data.documentos;
+    return (
+      <DocumentoDetalle
+        numero={lista[indiceDocAbierto].numero}
+        etiquetaVolver="Inicio"
+        onVolver={() => setIndiceDocAbierto(null)}
+        onAnterior={indiceDocAbierto > 0 ? () => setIndiceDocAbierto(indiceDocAbierto - 1) : undefined}
+        onSiguiente={indiceDocAbierto < lista.length - 1 ? () => setIndiceDocAbierto(indiceDocAbierto + 1) : undefined}
+      />
+    );
+  }
+  if (vista === 'todos-documentos') {
+    return <DocumentosTodos onVolver={() => setVista('inicio')} />;
+  }
   if (vista === 'elegir-documento') {
     return <ElegirTipoDocumento onAlbaran={() => setVista('nuevo-albaran')} onVolver={() => setVista('inicio')} />;
   }
@@ -237,6 +267,7 @@ export default function InicioScreen() {
                   <ListRow
                     key={d.numero}
                     last={i === documentos.data!.documentos.length - 1}
+                    onPress={() => setIndiceDocAbierto(i)}
                     title={`Albarán ${d.numero}`}
                     subtitle={d.cliente}
                     right={
@@ -247,7 +278,7 @@ export default function InicioScreen() {
                   />
                 ))}
               </ListCard>
-              <Pressable onPress={() => router.push('/pedidos')}>
+              <Pressable onPress={() => setVista('todos-documentos')}>
                 <ThemedText type="link" style={[styles.enlaceTodos, { color: theme.accent }]}>
                   Ver todos los documentos ›
                 </ThemedText>

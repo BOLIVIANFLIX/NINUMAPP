@@ -18,6 +18,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
   anadirLineaAlbaran,
   crearClienteProfesional,
@@ -60,6 +61,14 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
   const [fechaEntregaTexto, setFechaEntregaTexto] = useState('');
   const [numeroManual, setNumeroManual] = useState('');
   const [usarNumeroManual, setUsarNumeroManual] = useState(false);
+
+  // Botón/gesto de "atrás" de Android -- retrocede un paso en vez de salir directo a
+  // Pedidos (bug real: Ariadna, 2026-08-23).
+  useVolverAtras(paso === 'cliente', () => {
+    if (paso === 'hecho') return onVolver();
+    if (paso === 'catalogo') return setPaso('cliente');
+    setPaso('catalogo');
+  });
 
   const [clientes, setClientes] = useState<{ nombre: string }[] | null>(null);
   const [nuevoNombre, setNuevoNombre] = useState('');

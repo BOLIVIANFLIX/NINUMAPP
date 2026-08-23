@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import { mensajeError, obtenerTodosLosDocumentos } from '@/lib/api';
 
 const fecha = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -18,11 +19,20 @@ const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' 
 // más antiguo (a diferencia de "Documentos recientes" en Inicio, que solo son 6).
 export function DocumentosTodos({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
-  const [numeroAbierto, setNumeroAbierto] = useState<string | null>(null);
+  const [indiceAbierto, setIndiceAbierto] = useState<number | null>(null);
+  useVolverAtras(indiceAbierto === null, () => setIndiceAbierto(null));
   const { data, isLoading, error } = useQuery({ queryKey: ['documentos-todos'], queryFn: obtenerTodosLosDocumentos });
 
-  if (numeroAbierto) {
-    return <DocumentoDetalle numero={numeroAbierto} etiquetaVolver="Todos los documentos" onVolver={() => setNumeroAbierto(null)} />;
+  if (indiceAbierto !== null && data?.documentos.length) {
+    return (
+      <DocumentoDetalle
+        numero={data.documentos[indiceAbierto].numero}
+        etiquetaVolver="Todos los documentos"
+        onVolver={() => setIndiceAbierto(null)}
+        onAnterior={indiceAbierto > 0 ? () => setIndiceAbierto(indiceAbierto - 1) : undefined}
+        onSiguiente={indiceAbierto < data.documentos.length - 1 ? () => setIndiceAbierto(indiceAbierto + 1) : undefined}
+      />
+    );
   }
 
   return (
@@ -61,7 +71,7 @@ export function DocumentosTodos({ onVolver }: { onVolver: () => void }) {
                 <ListRow
                   key={d.numero}
                   last={i === data.documentos.length - 1}
-                  onPress={() => setNumeroAbierto(d.numero)}
+                  onPress={() => setIndiceAbierto(i)}
                   title={d.numero}
                   subtitle={`${d.cliente} · ${d.estado}`}
                   right={

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { GradientCard, ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import { mensajeError, obtenerEventosCalendario, type EventoCalendario } from '@/lib/api';
 
 const URL_CALENDARIO = process.env.EXPO_PUBLIC_GOOGLE_CALENDAR_URL;
@@ -22,7 +24,7 @@ const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'sh
 // Máximo de etiquetas de evento visibles dentro de una casilla del día antes de
 // resumir el resto en "+N" -- estilo Google Calendar (ver captura de referencia de
 // Ariadna), en vez de un simple punto + lista al tocar.
-const MAX_ETIQUETAS_POR_DIA = 3;
+const MAX_ETIQUETAS_POR_DIA = 2;
 
 function inicioMes(fecha: Date): Date {
   return new Date(fecha.getFullYear(), fecha.getMonth(), 1);
@@ -56,8 +58,27 @@ function construirRejilla(mesRef: Date): Date[] {
 
 export default function CalendarioScreen() {
   const theme = useTheme();
+  const navigation = useNavigation();
   const [mesRef, setMesRef] = useState(() => new Date());
   const [diaSeleccionado, setDiaSeleccionado] = useState<Date | null>(null);
+
+  function volverAlMesActual() {
+    setMesRef(new Date());
+    setDiaSeleccionado(null);
+  }
+
+  // Al salir del calendario (u de la app) siempre vuelve al mes actual al reabrir --
+  // antes se quedaba "congelado" en el mes al que se había navegado (bug real:
+  // Ariadna, 2026-08-23). Botón/gesto de "atrás" de Android: si hay un día
+  // seleccionado, lo deselecciona primero; si no, vuelve al mes actual.
+  useFocusEffect(useCallback(() => volverAlMesActual, []));
+  useEffect(() => {
+    return navigation.addListener('tabPress' as never, volverAlMesActual);
+  }, [navigation]);
+  useVolverAtras(!diaSeleccionado && mesRef.getMonth() === new Date().getMonth() && mesRef.getFullYear() === new Date().getFullYear(), () => {
+    if (diaSeleccionado) return setDiaSeleccionado(null);
+    volverAlMesActual();
+  });
 
   const desde = isoFecha(inicioMes(mesRef));
   const hasta = isoFecha(finMes(mesRef));
@@ -216,12 +237,12 @@ const styles = StyleSheet.create({
   filaSemana: { flexDirection: 'row' },
   celdaCabecera: { flex: 1, textAlign: 'center' },
   rejilla: { flexDirection: 'row', flexWrap: 'wrap' },
-  celdaDia: { width: `${100 / 7}%`, minHeight: 74, paddingVertical: 3, paddingHorizontal: 2, borderWidth: StyleSheet.hairlineWidth, gap: 2 },
-  circuloNumero: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
-  numeroDia: { fontSize: 12, textAlign: 'center' },
+  celdaDia: { width: `${100 / 7}%`, minHeight: 88, paddingVertical: 3, paddingHorizontal: 2, borderWidth: StyleSheet.hairlineWidth, gap: 2 },
+  circuloNumero: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
+  numeroDia: { fontSize: 14, textAlign: 'center' },
   etiquetasDia: { gap: 2 },
   etiquetaEvento: { borderRadius: 3, paddingHorizontal: 3, paddingVertical: 2 },
-  etiquetaTexto: { fontSize: 10, lineHeight: 13, color: '#fff', fontWeight: '600' },
-  masEventos: { fontSize: 9.5, lineHeight: 12, textAlign: 'center' },
+  etiquetaTexto: { fontSize: 12, lineHeight: 15, color: '#fff', fontWeight: '600' },
+  masEventos: { fontSize: 11, lineHeight: 14, textAlign: 'center' },
   tarjetaExterna: { marginTop: Spacing.four },
 });

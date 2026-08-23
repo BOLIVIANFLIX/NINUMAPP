@@ -11,6 +11,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha, ListCard, ListRow, SectionLabel, Segmented } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
   marcarAlarmasVistas,
   obtenerAlarmasRecientes,
@@ -38,6 +39,10 @@ export default function ObradorScreen() {
     setVista('obrador');
     setSub('Sensores');
   }
+
+  // Botón/gesto de "atrás" de Android -- vuelve a la pantalla principal de Obrador
+  // en vez de salir de la app (bug real: Ariadna, 2026-08-23).
+  useVolverAtras(vista === 'obrador', volverAlPrincipal);
 
   // Al entrar en Obrador se marcan como vistas las alarmas de HA pendientes -- el
   // badge de la barra inferior se limpia, "Alarmas recientes" se queda igual (son

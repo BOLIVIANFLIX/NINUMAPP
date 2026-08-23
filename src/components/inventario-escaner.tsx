@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
   confirmarInventario,
   descartarInventario,
@@ -37,6 +38,10 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
   // gasto, desglose de IVA) -- solo se rellena cuando el borrador es ticket_compra,
   // ver sincronización con setBorrador en alHacerFoto.
   const [correccion, setCorreccion] = useState<CorreccionTicket>({});
+
+  // Botón/gesto de "atrás" de Android -- retrocede un paso (o vuelve a escanear) en
+  // vez de salir directo a Obrador (bug real: Ariadna, 2026-08-23).
+  useVolverAtras(paso === 'camara', () => (paso === 'hecho' ? onVolver() : volverAEscanear()));
 
   async function alHacerFoto(uri: string) {
     setPaso('leyendo');

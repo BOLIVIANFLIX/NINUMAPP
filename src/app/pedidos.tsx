@@ -16,6 +16,7 @@ import { BotonPrimario } from '@/components/boton-primario';
 import { ListCard, ListRow, Pill, SectionLabel, Segmented, type PillColor } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
   cerrarMes,
   mensajeError,
@@ -68,6 +69,10 @@ export default function PedidosScreen() {
   }
 
   useFocusEffect(useCallback(() => volverAlPrincipal, []));
+
+  // Botón/gesto de "atrás" de Android -- vuelve a la pantalla principal de Pedidos
+  // en vez de salir de la app (bug real: Ariadna, 2026-08-23).
+  useVolverAtras(vista.tipo === 'principal', volverAlPrincipal);
 
   // Volver a tocar el icono de Pedidos ya activo también vuelve a la pantalla
   // principal (useFocusEffect no cubre este caso, no hay blur/focus de por medio).
