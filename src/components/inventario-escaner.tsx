@@ -125,11 +125,13 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
           {paso === 'hecho' && resultado && (
             <View style={styles.centro}>
               <ThemedText type="default">
-                {resultado.categoria === 'materia_prima'
-                  ? `✅ ${resultado.sumadas?.length ?? 0} producto(s) actualizados en Grocy, y registrado como gasto.`
-                  : resultado.categoria
-                    ? `✅ Registrado como gasto (${ETIQUETAS_CATEGORIA[resultado.categoria] ?? resultado.categoria}). No toca el stock.`
-                    : `✅ ${resultado.sumadas?.length ?? 0} receta(s) descontadas del stock.`}
+                {resultado.numero
+                  ? `✅ Albarán ${resultado.numero} registrado en contabilidad.`
+                  : resultado.categoria === 'materia_prima'
+                    ? `✅ ${resultado.sumadas?.length ?? 0} producto(s) actualizados en Grocy, y registrado como gasto.`
+                    : resultado.categoria
+                      ? `✅ Registrado como gasto (${ETIQUETAS_CATEGORIA[resultado.categoria] ?? resultado.categoria}). No toca el stock.`
+                      : `✅ ${resultado.sumadas?.length ?? 0} receta(s) descontadas del stock.`}
               </ThemedText>
               {!!resultado.sin_emparejar?.length && (
                 <ThemedText type="small" themeColor="danger" style={styles.aviso}>
@@ -269,7 +271,11 @@ function RevisionBorrador({
     );
   }
 
-  const etiqueta = `Tu albarán · ${borrador.cliente ?? 'cliente sin identificar'}`;
+  const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+  const etiqueta = `Tu albarán · ${borrador.cliente ?? 'cliente sin identificar'}${borrador.numero ? ` · Nº ${borrador.numero}` : ''}`;
+  const sinPrecio = borrador.lineas.filter((l) => l.precio_unitario === null).map((l) => l.descripcion);
+  const clienteNuevoIncompleto = !borrador.cliente_conocido && !(borrador.direccion_cliente && borrador.cif_cliente);
+  const bloqueado = !borrador.cliente || borrador.lineas.length === 0 || clienteNuevoIncompleto || sinPrecio.length > 0;
   return (
     <>
       <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>{etiqueta.toUpperCase()}</ThemedText>
@@ -278,12 +284,34 @@ function RevisionBorrador({
       ) : (
         <ListCard>
           {borrador.lineas.map((l, i) => (
-            <ListRow key={`${l.descripcion}-${i}`} last={i === borrador.lineas.length - 1} title={l.descripcion} right={<ThemedText type="small" themeColor="textSecondary">×{l.unidades}</ThemedText>} />
+            <ListRow
+              key={`${l.descripcion}-${i}`}
+              last={i === borrador.lineas.length - 1}
+              title={l.descripcion}
+              subtitle={`×${l.unidades}${l.precio_unitario === null ? ' · sin precio leído' : ` · ${eur.format(l.precio_unitario)}/ud`}`}
+              right={
+                <ThemedText type="small" themeColor={l.precio_unitario === null ? 'danger' : 'textSecondary'}>
+                  {l.precio_unitario !== null ? eur.format(l.precio_unitario * l.unidades) : '—'}
+                </ThemedText>
+              }
+            />
           ))}
         </ListCard>
       )}
+      {!borrador.cliente_conocido && borrador.cliente && (
+        <ThemedText type="small" themeColor="danger" style={styles.aviso}>
+          ❌ «{borrador.cliente}» no está en tus clientes guardados{borrador.direccion_cliente && borrador.cif_cliente ? ' -- se dará de alta automáticamente al confirmar.' : ', y me falta su dirección/CIF -- créalo antes desde "Nuevo albarán".'}
+        </ThemedText>
+      )}
+      {!!sinPrecio.length && (
+        <ThemedText type="small" themeColor="danger" style={styles.aviso}>
+          ❌ Sin precio leído: {sinPrecio.join(', ')} -- complétalo desde "Nuevo albarán".
+        </ThemedText>
+      )}
       <ThemedText type="small" themeColor="textSecondary" style={styles.leyenda}>
-        Esto es lo que he leído -- confirma o vuelve a escanear si algo está mal.
+        {bloqueado
+          ? 'No se puede registrar automáticamente tal cual -- usa "Nuevo albarán" para completarlo a mano, o vuelve a escanear con una foto más clara.'
+          : 'Al confirmar se registra ya en contabilidad con este número y no genera un documento nuevo (el papel ya existe).'}
       </ThemedText>
     </>
   );

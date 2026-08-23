@@ -263,6 +263,7 @@ export interface LineaTicketCompra {
 export interface LineaAlbaranPropio {
   descripcion: string;
   unidades: number;
+  precio_unitario: number | null;
 }
 
 export type BorradorEscaneo =
@@ -278,7 +279,16 @@ export type BorradorEscaneo =
       iva_porcentaje: number | null;
       lineas: LineaTicketCompra[];
     }
-  | { id: string; tipo: 'albaran_propio'; cliente: string | null; numero: string | null; lineas: LineaAlbaranPropio[] };
+  | {
+      id: string;
+      tipo: 'albaran_propio';
+      cliente: string | null;
+      cliente_conocido: boolean;
+      direccion_cliente: string | null;
+      cif_cliente: string | null;
+      numero: string | null;
+      lineas: LineaAlbaranPropio[];
+    };
 
 export async function escanearInventario(uri: string): Promise<BorradorEscaneo> {
   const resp = await api.post('/api/inventario/escanear', formDataDeFoto(uri));
@@ -291,6 +301,10 @@ export interface ResultadoConfirmarInventario {
   sumadas?: string[];
   sin_emparejar?: string[];
   categoria?: string;
+  /** Solo cuando el borrador era un albarán propio -- número real ya registrado en
+   * contabilidad (ver inventario.confirmar en ninuma-agente). */
+  numero?: string;
+  resumen?: string;
 }
 
 export interface CorreccionTicket {
