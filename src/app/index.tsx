@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -11,6 +11,7 @@ import { DocumentosTodos } from '@/components/documentos-todos';
 import { ElegirTipoDocumento } from '@/components/elegir-tipo-documento';
 import { EscanerQREntrada } from '@/components/escaner-qr-entrada';
 import { FacturasPendientesCobro } from '@/components/facturas-pendientes-cobro';
+import { HistorialAvisos } from '@/components/historial-avisos';
 import { IngresosGastos } from '@/components/ingresos-gastos';
 import { PreciosTienda } from '@/components/precios-tienda';
 import { PreferenciasAvisos } from '@/components/preferencias-avisos';
@@ -21,7 +22,7 @@ import { UsuariosPanel } from '@/components/usuarios-panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useVolverAtras } from '@/hooks/use-volver-atras';
-import { mensajeError, obtenerDocumentosRecientes, obtenerIvaTrimestre, obtenerResumen } from '@/lib/api';
+import { mensajeError, obtenerAvisosNoLeidos, obtenerDocumentosRecientes, obtenerIvaTrimestre, obtenerResumen } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -29,7 +30,7 @@ const fechaHoy = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numer
 const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' });
 const fechaLargaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'analisis-impuestos' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr' | 'preferencias-avisos' | 'todos-documentos';
+type Vista = 'inicio' | 'elegir-documento' | 'nuevo-albaran' | 'analisis' | 'analisis-impuestos' | 'ingresos' | 'precios-tienda' | 'usuarios' | 'facturas-cobro' | 'escanear-qr' | 'preferencias-avisos' | 'historial-avisos' | 'todos-documentos';
 
 // Réplica de panel._seccion_inicio: mismas 3 tarjetas, próxima entrega, acumulado
 // sin facturar, accesos rápidos reales (generar albarán/análisis/gastos) y Gestión
@@ -39,6 +40,7 @@ export default function InicioScreen() {
   const router = useRouter();
   const { cerrarSesion } = useAuth();
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
   const [vista, setVista] = useState<Vista>('inicio');
   // Documento abierto desde "Documentos recientes" -- índice (no solo el número)
   // para poder movernos a "Anterior"/"Siguiente" dentro de esa misma lista, en el
@@ -69,16 +71,24 @@ export default function InicioScreen() {
     return navigation.addListener('tabPress' as never, () => setVista('inicio'));
   }, [navigation]);
 
-  const { data: resumen, error, isFetching, refetch } = useQuery({
+  const { data: resumen, error } = useQuery({
     queryKey: ['resumen'],
     queryFn: obtenerResumen,
   });
+  // Tirar hacia abajo en Inicio refresca TODO lo que pueda haber cambiado desde
+  // fuera de la app -- alarmas de Home Assistant, correos/avisos pendientes,
+  // historial de avisos, resumen financiero... no solo las cifras de esta pantalla.
+  // Pedido explícito de Ariadna 2026-08-24 ("que compruebe si las alarmas, email,
+  // etc. siguen activas o son ya leídas").
+  const refrescandoTodo = useIsFetching() > 0;
+  const refrescarTodo = () => queryClient.invalidateQueries();
   const documentos = useQuery({ queryKey: ['documentos-recientes'], queryFn: obtenerDocumentosRecientes });
   const { anio: anioTrimestre, trimestre: numTrimestre } = trimestreActual();
   const { data: iva } = useQuery({
     queryKey: ['analisis', 'iva-trimestre', anioTrimestre, numTrimestre],
     queryFn: () => obtenerIvaTrimestre(anioTrimestre, numTrimestre),
   });
+  const { data: avisosNoLeidos } = useQuery({ queryKey: ['historial-avisos', 'no-leidos'], queryFn: obtenerAvisosNoLeidos, refetchInterval: 30_000 });
 
   const hoy = fechaHoy.format(new Date());
   const f = resumen?.financiero;
@@ -109,6 +119,7 @@ export default function InicioScreen() {
   if (vista === 'ingresos') return <IngresosGastos onVolver={() => setVista('inicio')} />;
   if (vista === 'precios-tienda') return <PreciosTienda onVolver={() => setVista('inicio')} />;
   if (vista === 'preferencias-avisos') return <PreferenciasAvisos onVolver={() => setVista('inicio')} />;
+  if (vista === 'historial-avisos') return <HistorialAvisos onVolver={() => setVista('inicio')} />;
   if (vista === 'usuarios') return <UsuariosPanel onVolver={() => setVista('inicio')} />;
   if (vista === 'facturas-cobro') return <FacturasPendientesCobro onVolver={() => setVista('inicio')} />;
   if (vista === 'escanear-qr') return <EscanerQREntrada onVolver={() => setVista('inicio')} />;
@@ -129,7 +140,7 @@ export default function InicioScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scroll}
-          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={theme.accent} />}>
+          refreshControl={<RefreshControl refreshing={refrescandoTodo} onRefresh={refrescarTodo} tintColor={theme.accent} />}>
           <View style={styles.cabecera}>
             <View>
               <ThemedText type="title" style={styles.saludo}>
@@ -256,6 +267,12 @@ export default function InicioScreen() {
             <ListRow onPress={() => setVista('precios-tienda')} title="🏷️ Precios de la tienda" subtitle="Precio público, se refleja en la web" />
             <ListRow onPress={() => setVista('escanear-qr')} title="🎟️ Validar entrada" subtitle="Escanea el QR de una cena/edición" />
             <ListRow onPress={() => setVista('preferencias-avisos')} title="🔔 Avisos por notificación" subtitle="Qué avisos recibir en el móvil" />
+            <ListRow
+              onPress={() => setVista('historial-avisos')}
+              title="📜 Historial de avisos"
+              subtitle="Todo lo que ha llegado como notificación"
+              right={!!avisosNoLeidos && <View style={[styles.badgeNoLeidos, { backgroundColor: theme.danger }]}><ThemedText style={styles.badgeTexto}>{avisosNoLeidos}</ThemedText></View>}
+            />
             <ListRow last onPress={() => setVista('usuarios')} title="👤 Gestionar usuarios" subtitle="Cuentas del panel" />
           </ListCard>
 
@@ -313,6 +330,8 @@ const styles = StyleSheet.create({
   subFecha: { marginTop: 2, textTransform: 'capitalize' },
   aviso: { lineHeight: 20, marginBottom: Spacing.three },
   kpiPress: { flexGrow: 1, flexBasis: '47%' },
+  badgeNoLeidos: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  badgeTexto: { color: '#fff', fontSize: 12, fontWeight: '700' },
   tarjetaProxima: { marginTop: Spacing.three },
   tarjetaAcumulado: { marginTop: Spacing.three },
   pill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, alignSelf: 'flex-start' },

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AsuntoEmail, AsuntoPedidoWeb } from '@/components/avisos-pendientes';
+import { AsuntoEmail, AsuntoPedidoWeb, SolicitudDetalle } from '@/components/avisos-pendientes';
 import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -14,10 +14,12 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   obtenerAvisos,
   obtenerAvisosPendientes,
+  obtenerCorreosPendientes,
   obtenerGrandFoliesPendientes,
   type EncargoPendiente,
   type PedidoGrandFolies,
   type PedidoWebPendiente,
+  type SolicitudPendiente,
 } from '@/lib/api';
 
 function hoyISO(): string {
@@ -35,11 +37,13 @@ export default function AvisosScreen() {
   const [pedidoGF, setPedidoGF] = useState<PedidoGrandFolies | null>(null);
   const [asuntoEmail, setAsuntoEmail] = useState<EncargoPendiente | null>(null);
   const [asuntoPedidoWeb, setAsuntoPedidoWeb] = useState<PedidoWebPendiente | null>(null);
+  const [solicitudAbierta, setSolicitudAbierta] = useState<SolicitudPendiente | null>(null);
 
   function volverAlPrincipal() {
     setPedidoGF(null);
     setAsuntoEmail(null);
     setAsuntoPedidoWeb(null);
+    setSolicitudAbierta(null);
   }
 
   useFocusEffect(useCallback(() => volverAlPrincipal, []));
@@ -51,9 +55,11 @@ export default function AvisosScreen() {
   const avisos = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const grandFolies = useQuery({ queryKey: ['avisos', 'grand-folies'], queryFn: obtenerGrandFoliesPendientes });
   const pendientesAgente = useQuery({ queryKey: ['avisos-pendientes'], queryFn: obtenerAvisosPendientes });
+  const correosGmail = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes, refetchInterval: 60_000 });
 
   if (asuntoEmail) return <AsuntoEmail encargo={asuntoEmail} onVolver={() => setAsuntoEmail(null)} />;
   if (asuntoPedidoWeb) return <AsuntoPedidoWeb pedido={asuntoPedidoWeb} onVolver={() => setAsuntoPedidoWeb(null)} />;
+  if (solicitudAbierta) return <SolicitudDetalle solicitud={solicitudAbierta} onVolver={() => setSolicitudAbierta(null)} />;
 
   if (pedidoGF) {
     return (
@@ -144,29 +150,71 @@ export default function AvisosScreen() {
           )}
 
           <SectionLabel>Correo sin resolver</SectionLabel>
-          {pendientesAgente.data?.aviso && (
+          {avisos.data?.aviso && (
             <ThemedText type="small" themeColor="textSecondary">
-              ℹ️ {pendientesAgente.data.aviso}
+              ℹ️ {avisos.data.aviso}
             </ThemedText>
           )}
-          {pendientesAgente.data?.conectado && pendientesAgente.data.encargos.length === 0 && (
+          {avisos.data?.conectado && avisos.data.solicitudes.length === 0 && (
             <ThemedText type="small" themeColor="textSecondary">
               Sin contactos de correo pendientes.
             </ThemedText>
           )}
-          {!!pendientesAgente.data?.encargos.length && (
+          {!!avisos.data?.solicitudes.length && (
             <ListCard>
-              {pendientesAgente.data.encargos.map((e, i) => (
+              {avisos.data.solicitudes.map((s, i) => (
                 <ListRow
-                  key={e.id}
-                  last={i === pendientesAgente.data!.encargos.length - 1}
-                  onPress={() => setAsuntoEmail(e)}
-                  left={<NotifIcono icono={e.urgente ? '⚠️' : '✉️'} color={e.urgente ? theme.danger : theme.info} bg={e.urgente ? theme.dangerSoft : theme.infoSoft} />}
-                  title={`${e.categoria} · ${e.cliente ?? 'sin nombre'}`}
-                  subtitle={e.resumen}
+                  key={s.id}
+                  last={i === avisos.data!.solicitudes.length - 1}
+                  onPress={() => setSolicitudAbierta(s)}
+                  left={<NotifIcono icono="✉️" color={theme.info} bg={theme.infoSoft} />}
+                  title={s.cliente}
+                  subtitle={s.descripcion}
                 />
               ))}
             </ListCard>
+          )}
+
+          {/* Respaldo local -- solo aparece si alguna vez falla la llamada a la web al
+              detectar el correo (ver main.py::procesar_mensajes_nuevos en ninuma-agente);
+              en el camino normal esta lista está vacía porque el pedido ya quedó arriba. */}
+          {!!pendientesAgente.data?.encargos.length && (
+            <>
+              <SectionLabel>Sin conexión con la web (respaldo local)</SectionLabel>
+              <ListCard>
+                {pendientesAgente.data.encargos.map((e, i) => (
+                  <ListRow
+                    key={e.id}
+                    last={i === pendientesAgente.data!.encargos.length - 1}
+                    onPress={() => setAsuntoEmail(e)}
+                    left={<NotifIcono icono={e.urgente ? '⚠️' : '✉️'} color={e.urgente ? theme.danger : theme.info} bg={e.urgente ? theme.dangerSoft : theme.infoSoft} />}
+                    title={`${e.categoria} · ${e.cliente ?? 'sin nombre'}`}
+                    subtitle={e.resumen}
+                  />
+                ))}
+              </ListCard>
+            </>
+          )}
+
+          {/* Bandeja de Gmail en crudo (cualquier correo sin leer, lo haya clasificado o
+              no ninuma-agente) -- Ariadna, 2026-08-24: contaba en el número de avisos
+              pero no se veía en ningún sitio de la app, así que un correo sin
+              clasificar quedaba "contado pero invisible". */}
+          {!!correosGmail.data?.correos.length && (
+            <>
+              <SectionLabel>Correos sin leer</SectionLabel>
+              <ListCard>
+                {correosGmail.data.correos.map((c, i) => (
+                  <ListRow
+                    key={c.id}
+                    last={i === correosGmail.data!.correos.length - 1}
+                    left={<NotifIcono icono="📧" color={theme.info} bg={theme.infoSoft} />}
+                    title={c.asunto || '(sin asunto)'}
+                    subtitle={`${c.de}${c.resumen ? ` · ${c.resumen}` : ''}`}
+                  />
+                ))}
+              </ListCard>
+            </>
           )}
 
           {!!pendientesAgente.data?.pedidos_web.length && (

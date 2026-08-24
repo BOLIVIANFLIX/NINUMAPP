@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "975994589849",
+    "project_id": "ninumapp",
+    "storage_bucket": "ninumapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:975994589849:android:95413cb596666a10a59e08",
+        "android_client_info": {
+          "package_name": "es.ninuma.ninumapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYT-4ZP8syJeyYfWK4IUwyiEwLTg7Pi5c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

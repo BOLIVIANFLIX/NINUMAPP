@@ -117,6 +117,25 @@ class PreferenciaNotificacion(Base):
     actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora, onupdate=_ahora)
 
 
+class AvisoHistorial(Base):
+    """Registro persistente de cada aviso mandado por /api/notificaciones/enviar --
+    independiente de si el push al móvil llegó o no (Ariadna, 2026-08-24: un pedido
+    pagado no se reflejaba ni avisaba dentro de la app porque el push nunca tuvo
+    ningún dispositivo registrado; el push es un canal más, no el único sitio donde
+    debe quedar constancia del aviso). Se guarda siempre que se llama a /enviar,
+    incluso si el tipo está desactivado en preferencias -- desactivar un tipo apaga
+    el push de ESE tipo, no borra el hecho de que ocurrió."""
+
+    __tablename__ = "avisos_historial"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tipo: Mapped[str] = mapped_column(String, index=True)
+    titulo: Mapped[str] = mapped_column(String)
+    cuerpo: Mapped[str] = mapped_column(Text)
+    leido: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=_ahora, index=True)
+
+
 class Cliente(Base):
     """Clientes propios de NINUMAPP -- deliberadamente independiente de `clientes` en
     la Supabase de la web (WBD): esta tabla vive solo en la base de datos de NINUMAPP,

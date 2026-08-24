@@ -36,6 +36,31 @@ async def listar(usuario: Usuario = Depends(usuario_actual)):
     }
 
 
+class EditarSolicitudBody(BaseModel):
+    fecha: str | None = None
+    nombre: str | None = None
+    telefono: str | None = None
+    nif: str | None = None
+    es_empresa: bool | None = None
+    precio_cents: int | None = None
+
+
+@router.post("/solicitud/{solicitud_id}/editar")
+async def solicitud_editar(solicitud_id: str, body: EditarSolicitudBody, usuario: Usuario = Depends(usuario_actual)):
+    ok = await avisos_service.editar_solicitud(
+        solicitud_id,
+        fecha=body.fecha,
+        nombre=body.nombre,
+        telefono=body.telefono,
+        nif=body.nif,
+        es_empresa=body.es_empresa,
+        precio_cents=body.precio_cents,
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail="No se ha podido guardar los cambios en la web.")
+    return {"ok": True}
+
+
 @router.get("/pendientes")
 async def pendientes(usuario: Usuario = Depends(usuario_actual)):
     """Correo sin resolver + pedidos de la web pendientes de revisar -- mismas dos

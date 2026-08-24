@@ -66,15 +66,35 @@ export function Ficha({ children, style }: ViewProps) {
   return <View style={[styles.ficha, { backgroundColor: theme.backgroundElement }, style]}>{children}</View>;
 }
 
-export function FilaFicha({ etiqueta, valor, last }: { etiqueta: string; valor: React.ReactNode; last?: boolean }) {
+export function FilaFicha({
+  etiqueta,
+  valor,
+  last,
+  multilinea,
+}: {
+  etiqueta: string;
+  valor: React.ReactNode;
+  last?: boolean;
+  /** Para textos largos (p.ej. la descripción completa de un correo) -- etiqueta
+   * arriba y valor debajo, sin cortar a una sola línea. Ariadna, 2026-08-24: el
+   * cuadro de "Correo sin resolver" solo dejaba leer el principio del correo. */
+  multilinea?: boolean;
+}) {
   const theme = useTheme();
   return (
-    <View style={[styles.filaFicha, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.separator }]}>
+    <View
+      style={[
+        multilinea ? styles.filaFichaMultilinea : styles.filaFicha,
+        !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.separator },
+      ]}>
       <ThemedText type="small" themeColor="textSecondary" style={styles.filaFichaEtiqueta} numberOfLines={1}>
         {etiqueta}
       </ThemedText>
       {typeof valor === 'string' ? (
-        <ThemedText type="smallBold" style={styles.filaFichaValor} numberOfLines={1}>
+        <ThemedText
+          type="smallBold"
+          style={multilinea ? styles.filaFichaValorMultilinea : styles.filaFichaValor}
+          numberOfLines={multilinea ? undefined : 1}>
           {valor}
         </ThemedText>
       ) : (
@@ -210,8 +230,10 @@ const styles = StyleSheet.create({
   listRowSub: { marginTop: 1 },
   ficha: { borderRadius: 16, paddingHorizontal: Spacing.three, paddingVertical: 2 },
   filaFicha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two, paddingVertical: 10 },
+  filaFichaMultilinea: { paddingVertical: 10, gap: 4 },
   filaFichaEtiqueta: { flexShrink: 1 },
   filaFichaValor: { textAlign: 'right' },
+  filaFichaValorMultilinea: { textAlign: 'left', lineHeight: 20 },
   pill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, alignSelf: 'flex-start' },
   pillText: { fontSize: 11, fontWeight: '700', lineHeight: 14 },
   dot: { width: 9, height: 9, borderRadius: 5 },

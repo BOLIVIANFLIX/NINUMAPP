@@ -79,8 +79,11 @@ export default function ObradorScreen() {
 
           {sub === 'Sensores' ? (
             <>
-              {/* Registro permanente de las últimas alarmas (vistas o no) -- distinto
-                  del banner de abajo, que es el estado ACTUAL agregado. */}
+              {/* Solo alarmas que Ariadna todavía no ha visto -- al entrar en Obrador se
+                  marcan como vistas (ver useFocusEffect arriba) y desaparecen de aquí en
+                  la siguiente visita, no vuelven a saltar como aviso. Pedido explícito
+                  2026-08-24 (antes era un registro permanente, vistas o no). Distinto del
+                  banner de abajo, que es el estado ACTUAL agregado. */}
               {!!recientes.data?.recientes.length && (
                 <>
                   <SectionLabel>Alarmas recientes</SectionLabel>

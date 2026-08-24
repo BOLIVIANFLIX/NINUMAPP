@@ -227,6 +227,11 @@ export interface SolicitudPendiente {
   creado_en: string;
   descripcion: string | null;
   cliente: string;
+  recogida_fecha: string | null;
+  guest_telefono: string | null;
+  nif: string | null;
+  es_empresa: boolean | null;
+  total_cents: number | null;
 }
 
 export interface RespuestaAvisos extends RespuestaConAviso<SolicitudPendiente> {
@@ -237,6 +242,23 @@ export interface RespuestaAvisos extends RespuestaConAviso<SolicitudPendiente> {
 export async function obtenerAvisos(): Promise<RespuestaAvisos> {
   const resp = await api.get('/api/avisos');
   return resp.data;
+}
+
+export interface CambiosSolicitud {
+  fecha?: string;
+  nombre?: string;
+  telefono?: string;
+  nif?: string;
+  es_empresa?: boolean;
+  precio_cents?: number;
+}
+
+/** Edita una solicitud (Correo sin resolver) directamente en la web -- mismos campos
+ * que ya se pueden tocar por Telegram (nombre, teléfono, NIF/CIF, precio, empresa/
+ * particular, fecha). Al incluir fecha, marca fecha_confirmada_por_operador y
+ * sincroniza el calendario compartido. Ver app/services/avisos.py::editar_solicitud. */
+export async function editarSolicitud(id: string, cambios: CambiosSolicitud): Promise<void> {
+  await api.post(`/api/avisos/solicitud/${id}/editar`, cambios);
 }
 
 /** FormData con la foto -- se sube tal cual, sin fijar Content-Type a mano (axios/RN
@@ -943,6 +965,33 @@ export async function obtenerPreferenciasNotificaciones(): Promise<PreferenciaNo
 
 export async function guardarPreferenciaNotificacion(tipo: string, activo: boolean): Promise<void> {
   await api.post('/api/notificaciones/preferencias', { tipo, activo });
+}
+
+export interface AvisoHistorial {
+  id: string;
+  tipo: string;
+  titulo: string;
+  cuerpo: string;
+  leido: boolean;
+  creado_en: string;
+}
+
+export async function obtenerHistorialAvisos(): Promise<AvisoHistorial[]> {
+  const resp = await api.get('/api/notificaciones/historial');
+  return resp.data;
+}
+
+export async function obtenerAvisosNoLeidos(): Promise<number> {
+  const resp = await api.get('/api/notificaciones/historial/no-leidos');
+  return resp.data.no_leidos;
+}
+
+export async function marcarAvisoLeido(id: string): Promise<void> {
+  await api.post(`/api/notificaciones/historial/${id}/leido`);
+}
+
+export async function marcarTodosAvisosLeidos(): Promise<void> {
+  await api.post('/api/notificaciones/historial/marcar-todos-leidos');
 }
 
 export function urlTicketsPeriodo(desde: string, hasta: string): string {

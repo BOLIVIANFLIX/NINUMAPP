@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     panel_agente_url: str = ""
     ninumapp_api_secret: str = ""
 
+    # NINUMAPP solo tiene lectura en Supabase (rol ninumapp_lectura, ver arriba) --
+    # para confirmar una fecha en una solicitud desde "Correo sin resolver" hace
+    # falta pasar por la propia web (WBD), que sí puede escribir, vía
+    # /api/ninumapp-agendar con este mismo NINUMAPP_API_SECRET. Ver
+    # app/services/avisos.py.
+    wbd_url: str = "https://www.ninuma.es"
+
     # Access Token (JWT, corto) + Refresh Token (opaco, largo) -- ver app/auth.py.
     # jwt_secret debe fijarse de verdad en producción (.env) -- el valor por defecto
     # solo vale para desarrollo local, nunca desplegar con este.

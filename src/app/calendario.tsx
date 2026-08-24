@@ -11,6 +11,7 @@ import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useVolverAtras } from '@/hooks/use-volver-atras';
 import { mensajeError, obtenerEventosCalendario, type EventoCalendario } from '@/lib/api';
+import { colorEvento } from '@/lib/calendario-colores';
 
 const URL_CALENDARIO = process.env.EXPO_PUBLIC_GOOGLE_CALENDAR_URL;
 
@@ -176,7 +177,7 @@ export default function CalendarioScreen() {
                   </View>
                   <View style={styles.etiquetasDia}>
                     {visibles.map((ev) => (
-                      <View key={ev.id} style={[styles.etiquetaEvento, { backgroundColor: ev.color || theme.info }]}>
+                      <View key={ev.id} style={[styles.etiquetaEvento, { backgroundColor: colorEvento(ev.color, theme.info) }]}>
                         <ThemedText numberOfLines={1} style={styles.etiquetaTexto}>
                           {ev.todo_el_dia ? ev.titulo : ev.titulo}
                         </ThemedText>

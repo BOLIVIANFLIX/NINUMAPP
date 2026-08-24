@@ -12,7 +12,16 @@ import { Spacing } from '@/constants/theme';
  * de control de entrada (/cuenta/admin/checkin -- ver WBD/src/lib/email.ts,
  * WBD/src/pages/cuenta/admin/checkin.astro). No hace falta reimplementar la
  * validación: solo hay que leer el QR y abrir ese enlace -- la lógica de marcar
- * entrada, comprobar si ya estaba validada, etc. ya existe y funciona en la web. */
+ * entrada, comprobar si ya estaba validada, etc. ya existe y funciona en la web.
+ *
+ * Dominios aceptados: el QR se genera con SITE_URL (ver WBD/src/lib/locator.ts),
+ * que hoy en producción todavía es https://ninuma.netlify.app -- el cutover a
+ * https://www.ninuma.es (ver WBD/src/env.d.ts) aún no se ha hecho. Ariadna,
+ * 2026-08-24: ningún QR se validaba porque este escáner solo aceptaba "ninuma.es",
+ * y el dominio real (netlify.app) nunca lo cumplía -- se acepta cualquiera de los
+ * dos para que siga funcionando también después del cutover, sin tocar la app otra
+ * vez ese día. */
+const _DOMINIOS_VALIDOS = ["ninuma.netlify.app", "ninuma.es", "www.ninuma.es"];
 export function EscanerQREntrada({ onVolver }: { onVolver: () => void }) {
   const [permiso, pedirPermiso] = useCameraPermissions();
   const [leido, setLeido] = useState(false);
@@ -42,7 +51,7 @@ export function EscanerQREntrada({ onVolver }: { onVolver: () => void }) {
     setLeido(true);
     try {
       const url = new URL(data);
-      if (url.hostname.endsWith('ninuma.es') && url.pathname.startsWith('/cuenta/admin/checkin')) {
+      if (_DOMINIOS_VALIDOS.includes(url.hostname) && url.pathname.startsWith('/cuenta/admin/checkin')) {
         await Linking.openURL(data);
         onVolver();
         return;

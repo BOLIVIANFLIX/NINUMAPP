@@ -13,15 +13,17 @@ dejando los avisos de Telegram por push. Tres caminos:
   desmarcar los avisos que quiero que me lleguen"), en vez de decidirlo nosotros de
   antemano uno por uno."""
 
+from datetime import datetime
+
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.models import DispositivoPush, PreferenciaNotificacion, Usuario
+from app.models import AvisoHistorial, DispositivoPush, PreferenciaNotificacion, Usuario
 from app.routers.auth import usuario_actual
 
 router = APIRouter(prefix="/api/notificaciones", tags=["notificaciones"])
@@ -93,6 +95,12 @@ async def enviar(
 ):
     _verificar_secreto(x_notificaciones_secret)
 
+    # Queda constancia siempre, aunque el tipo esté desactivado o no haya ningún
+    # dispositivo con push registrado -- el push es un canal más, no el único sitio
+    # donde debe verse que esto ha pasado (ver AvisoHistorial en app/models.py).
+    db.add(AvisoHistorial(tipo=body.tipo or "otro", titulo=body.titulo, cuerpo=body.cuerpo))
+    await db.commit()
+
     if body.tipo and not await _tipo_activo(db, body.tipo):
         return {"ok": True, "enviados": 0, "omitido_por_preferencia": True}
 
@@ -110,6 +118,52 @@ async def enviar(
         return {"ok": False, "enviados": 0}
 
     return {"ok": True, "enviados": len(tokens)}
+
+
+class AvisoHistorialOut(BaseModel):
+    id: str
+    tipo: str
+    titulo: str
+    cuerpo: str
+    leido: bool
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/historial", response_model=list[AvisoHistorialOut])
+async def historial(
+    limite: int = 50, usuario: Usuario = Depends(usuario_actual), db: AsyncSession = Depends(get_db)
+):
+    filas = (
+        await db.execute(select(AvisoHistorial).order_by(desc(AvisoHistorial.creado_en)).limit(min(limite, 200)))
+    ).scalars().all()
+    return filas
+
+
+@router.get("/historial/no-leidos")
+async def historial_no_leidos(usuario: Usuario = Depends(usuario_actual), db: AsyncSession = Depends(get_db)):
+    total = (
+        await db.execute(select(func.count()).select_from(AvisoHistorial).where(AvisoHistorial.leido.is_(False)))
+    ).scalar_one()
+    return {"no_leidos": total}
+
+
+@router.post("/historial/{aviso_id}/leido")
+async def marcar_leido(aviso_id: str, usuario: Usuario = Depends(usuario_actual), db: AsyncSession = Depends(get_db)):
+    fila = (await db.execute(select(AvisoHistorial).where(AvisoHistorial.id == aviso_id))).scalar_one_or_none()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Aviso no encontrado.")
+    fila.leido = True
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/historial/marcar-todos-leidos")
+async def marcar_todos_leidos(usuario: Usuario = Depends(usuario_actual), db: AsyncSession = Depends(get_db)):
+    await db.execute(update(AvisoHistorial).where(AvisoHistorial.leido.is_(False)).values(leido=True))
+    await db.commit()
+    return {"ok": True}
 
 
 @router.get("/preferencias")
