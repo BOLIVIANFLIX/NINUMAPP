@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BotonPrimario } from '@/components/boton-primario';
@@ -38,7 +38,7 @@ export function PreciosTienda({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [vista, setVista] = useState<Vista>({ tipo: 'catalogo' });
-  const { data, isLoading, error } = useQuery({ queryKey: ['catalogo-tienda'], queryFn: obtenerCatalogoTienda });
+  const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['catalogo-tienda'], queryFn: obtenerCatalogoTienda });
 
   function invalidar() {
     queryClient.invalidateQueries({ queryKey: ['catalogo-tienda'] });
@@ -57,7 +57,9 @@ export function PreciosTienda({ onVolver }: { onVolver: () => void }) {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} tintColor={theme.accent} />}>
           <Pressable onPress={onVolver}>
             <ThemedText type="link" themeColor="textSecondary">← Inicio</ThemedText>
           </Pressable>

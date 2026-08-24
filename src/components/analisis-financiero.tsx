@@ -1,8 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -47,6 +47,8 @@ const PERIODOS: { valor: PeriodoAnalisis; etiqueta: string }[] = [
 // (csv_contabilidad/costes/db) vía panel_agente, nunca recalculadas aquí.
 export function AnalisisFinanciero({ onVolver, subInicial }: { onVolver: () => void; subInicial?: Sub }) {
   const theme = useTheme();
+  const queryClient = useQueryClient();
+  const refrescandoTodo = useIsFetching() > 0;
   const [sub, setSub] = useState<Sub>(subInicial ?? 'Resumen');
   const [p, setP] = useState<PeriodoAnalisis>('mes');
   const [desde, setDesde] = useState('');
@@ -55,7 +57,9 @@ export function AnalisisFinanciero({ onVolver, subInicial }: { onVolver: () => v
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refrescandoTodo} onRefresh={() => queryClient.invalidateQueries()} tintColor={theme.accent} />}>
           <Pressable onPress={onVolver}>
             <ThemedText type="link" themeColor="textSecondary">
               ← Inicio

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DocumentoDetalle } from '@/components/documento-detalle';
@@ -21,7 +21,7 @@ export function DocumentosTodos({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
   const [indiceAbierto, setIndiceAbierto] = useState<number | null>(null);
   useVolverAtras(indiceAbierto === null, () => setIndiceAbierto(null));
-  const { data, isLoading, error } = useQuery({ queryKey: ['documentos-todos'], queryFn: obtenerTodosLosDocumentos });
+  const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['documentos-todos'], queryFn: obtenerTodosLosDocumentos });
 
   if (indiceAbierto !== null && data?.documentos.length) {
     return (
@@ -38,7 +38,9 @@ export function DocumentosTodos({ onVolver }: { onVolver: () => void }) {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} tintColor={theme.accent} />}>
           <Pressable onPress={onVolver}>
             <ThemedText type="link" themeColor="textSecondary">
               ← Inicio

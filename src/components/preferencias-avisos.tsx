@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -22,12 +22,14 @@ import {
 export function PreferenciasAvisos({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery({ queryKey: ['preferencias-avisos'], queryFn: obtenerPreferenciasNotificaciones });
+  const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['preferencias-avisos'], queryFn: obtenerPreferenciasNotificaciones });
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} tintColor={theme.accent} />}>
           <Pressable onPress={onVolver}>
             <ThemedText type="link" themeColor="textSecondary">← Inicio</ThemedText>
           </Pressable>

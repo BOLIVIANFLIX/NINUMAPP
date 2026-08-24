@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DocumentoDetalle } from '@/components/documento-detalle';
@@ -23,7 +23,7 @@ export function FacturasPendientesCobro({ onVolver }: { onVolver: () => void }) 
   const [abierto, setAbierto] = useState<{ numeros: string[]; indice: number } | null>(null);
   useVolverAtras(abierto === null, () => setAbierto(null));
   const [cobrando, setCobrando] = useState<string | null>(null);
-  const { data, isLoading, error } = useQuery({ queryKey: ['facturas-pendientes-cobro'], queryFn: obtenerFacturasPendientesCobro });
+  const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['facturas-pendientes-cobro'], queryFn: obtenerFacturasPendientesCobro });
 
   if (abierto) {
     return (
@@ -71,7 +71,9 @@ export function FacturasPendientesCobro({ onVolver }: { onVolver: () => void }) 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} tintColor={theme.accent} />}>
           <Pressable onPress={onVolver}>
             <ThemedText type="link" themeColor="textSecondary">
               ← Inicio

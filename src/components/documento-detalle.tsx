@@ -4,7 +4,7 @@ import { getContentUriAsync, StorageAccessFramework } from 'expo-file-system/leg
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -60,7 +60,7 @@ export function DocumentoDetalle({
 }) {
   const theme = useTheme();
   const [accionEnCurso, setAccionEnCurso] = useState<'ver' | 'compartir' | 'pdf' | 'docx' | null>(null);
-  const { data, isLoading, error } = useQuery({ queryKey: ['documento', numero], queryFn: () => obtenerDocumentoDetalle(numero) });
+  const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['documento', numero], queryFn: () => obtenerDocumentoDetalle(numero) });
 
   async function ver() {
     setAccionEnCurso('ver');
@@ -123,7 +123,9 @@ export function DocumentoDetalle({
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} tintColor={theme.accent} />}>
           <View style={styles.filaCabecera}>
             <Pressable onPress={onVolver}>
               <ThemedText type="link" themeColor="textSecondary">

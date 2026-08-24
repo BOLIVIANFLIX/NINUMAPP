@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DocumentoDetalle } from '@/components/documento-detalle';
@@ -51,7 +51,7 @@ export function IngresosGastos({ onVolver }: { onVolver: () => void }) {
   useVolverAtras(indiceAbierto === null, () => setIndiceAbierto(null));
   const mesParam = `${anio}-${String(mes).padStart(2, '0')}`;
 
-  const { data, isLoading, error } = useQuery({ queryKey: ['ingresos', mesParam], queryFn: () => obtenerIngresosDelMes(mesParam) });
+  const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['ingresos', mesParam], queryFn: () => obtenerIngresosDelMes(mesParam) });
 
   if (indiceAbierto !== null && data?.documentos.length) {
     return (
@@ -72,7 +72,9 @@ export function IngresosGastos({ onVolver }: { onVolver: () => void }) {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} tintColor={theme.accent} />}>
           <Pressable onPress={onVolver}>
             <ThemedText type="link" themeColor="textSecondary">
               ← Inicio

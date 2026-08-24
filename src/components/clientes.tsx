@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BotonPrimario } from '@/components/boton-primario';
@@ -23,7 +23,7 @@ function iniciales(nombre: string): string {
 export function Clientes({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
   const [vista, setVista] = useState<Vista>({ tipo: 'lista' });
-  const { data, isLoading, error } = useQuery({ queryKey: ['clientes'], queryFn: obtenerClientes });
+  const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['clientes'], queryFn: obtenerClientes });
 
   if (vista.tipo === 'form') {
     return <ClienteFormulario cliente={vista.cliente} onVolver={() => setVista({ tipo: 'lista' })} />;
@@ -32,7 +32,9 @@ export function Clientes({ onVolver }: { onVolver: () => void }) {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} tintColor={theme.accent} />}>
           <Pressable onPress={onVolver}>
             <ThemedText type="link" themeColor="textSecondary">
               ← Pedidos

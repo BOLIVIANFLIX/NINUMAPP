@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -20,7 +20,7 @@ const fechaHora = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'sho
 export function HistorialAvisos({ onVolver }: { onVolver: () => void }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery({ queryKey: ['historial-avisos'], queryFn: obtenerHistorialAvisos, refetchInterval: 30_000 });
+  const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['historial-avisos'], queryFn: obtenerHistorialAvisos, refetchInterval: 30_000 });
 
   const noLeidos = data?.filter((a) => !a.leido).length ?? 0;
 
@@ -37,7 +37,9 @@ export function HistorialAvisos({ onVolver }: { onVolver: () => void }) {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} tintColor={theme.accent} />}>
           <Pressable onPress={onVolver}>
             <ThemedText type="link" themeColor="textSecondary">← Inicio</ThemedText>
           </Pressable>

@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -60,6 +60,8 @@ function construirRejilla(mesRef: Date): Date[] {
 export default function CalendarioScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
+  const refrescandoTodo = useIsFetching() > 0;
   const [mesRef, setMesRef] = useState(() => new Date());
   const [diaSeleccionado, setDiaSeleccionado] = useState<Date | null>(null);
 
@@ -106,7 +108,9 @@ export default function CalendarioScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refrescandoTodo} onRefresh={() => queryClient.invalidateQueries()} tintColor={theme.accent} />}>
           <ThemedText type="title" style={styles.titulo}>
             Calendario
           </ThemedText>

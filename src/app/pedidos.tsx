@@ -1,7 +1,7 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlbaranWizard } from '@/components/albaran-wizard';
@@ -85,6 +85,7 @@ export default function PedidosScreen() {
   const resumenQuery = useQuery({ queryKey: ['resumen'], queryFn: obtenerResumen });
   const webQuery = useQuery({ queryKey: ['pedidos'], queryFn: obtenerPedidos });
   const propiosQuery = useQuery({ queryKey: ['pedidos-propios'], queryFn: obtenerPedidosPropios });
+  const refrescandoTodo = useIsFetching() > 0;
 
   function volverYRefrescar() {
     setVista({ tipo: 'principal' });
@@ -159,7 +160,9 @@ export default function PedidosScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refrescandoTodo} onRefresh={() => queryClient.invalidateQueries()} tintColor={theme.accent} />}>
           <View style={styles.filaTitulo}>
             <ThemedText type="title" style={styles.titulo}>
               Pedidos

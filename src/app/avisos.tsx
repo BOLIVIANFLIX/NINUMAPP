@@ -1,7 +1,7 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AsuntoEmail, SolicitudDetalle } from '@/components/avisos-pendientes';
@@ -53,6 +53,7 @@ export default function AvisosScreen() {
   const grandFolies = useQuery({ queryKey: ['avisos', 'grand-folies'], queryFn: obtenerGrandFoliesPendientes });
   const pendientesAgente = useQuery({ queryKey: ['avisos-pendientes'], queryFn: obtenerAvisosPendientes });
   const correosGmail = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes, refetchInterval: 60_000 });
+  const refrescandoTodo = useIsFetching() > 0;
 
   if (asuntoEmail) return <AsuntoEmail encargo={asuntoEmail} onVolver={() => setAsuntoEmail(null)} />;
   if (solicitudAbierta) return <SolicitudDetalle solicitud={solicitudAbierta} onVolver={() => setSolicitudAbierta(null)} />;
@@ -78,7 +79,9 @@ export default function AvisosScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refrescandoTodo} onRefresh={() => queryClient.invalidateQueries()} tintColor={theme.accent} />}>
           <ThemedText type="title" style={styles.titulo}>
             Avisos
           </ThemedText>

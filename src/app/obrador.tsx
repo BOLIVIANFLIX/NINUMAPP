@@ -1,8 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InventarioEscaner } from '@/components/inventario-escaner';
@@ -64,13 +64,16 @@ export default function ObradorScreen() {
   const sensores = useQuery({ queryKey: ['obrador', 'sensores'], queryFn: obtenerSensores, refetchInterval: 30_000 });
   const stock = useQuery({ queryKey: ['obrador', 'stock-actual'], queryFn: obtenerStockActual, enabled: sub === 'Inventario' });
   const movimientos = useQuery({ queryKey: ['obrador', 'movimientos'], queryFn: obtenerMovimientosInventario, enabled: sub === 'Inventario' });
+  const refrescandoTodo = useIsFetching() > 0;
 
   if (vista === 'escanear') return <InventarioEscaner onVolver={() => setVista('obrador')} />;
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refrescandoTodo} onRefresh={() => queryClient.invalidateQueries()} tintColor={theme.accent} />}>
           <ThemedText type="title" style={styles.titulo}>
             Obrador
           </ThemedText>
