@@ -21,6 +21,8 @@ class SolicitudPendiente(TypedDict):
     creado_en: datetime
     descripcion: str | None
     cliente: str
+    kind: str
+    payment_status: str | None
     recogida_fecha: str | None
     guest_telefono: str | None
     nif: str | None
@@ -28,13 +30,27 @@ class SolicitudPendiente(TypedDict):
     total_cents: int | None
 
 
+# Hasta el 2026-08-24 esto solo miraba kind='encargo' -- tienda/edición nunca
+# aparecían aquí porque siempre llegan con payment_status='pagado' (se cobran al
+# momento en Stripe), así que ese filtro los excluía por diseño. Se apoyaban en un
+# mecanismo aparte en ninuma-agente (revision_pedidos_web, por locator) que además
+# descartaba en silencio cualquier pedido sin locator -- y locator es SIEMPRE null
+# para kind='tienda' (ver WBD/src/lib/webhook-stripe.ts), así que ninguna compra de
+# tienda llegaba nunca a ningún sitio revisable. Ariadna, 2026-08-24, probando una
+# ronda de compras real: "en los pedidos hechos por tienda no me deja modificar
+# nada", "con ediciones no me deja editar ningún dato". Se unifica: cualquier pedido
+# (menos b2b, que tiene su propio flujo) sin `fecha_confirmada_por_operador` sale
+# aquí, esté pagado o no -- guardarCampoOpcional ya marca esa columna para
+# cualquier `kind` al confirmar una fecha (ver WBD/src/lib/telegram-pedidos.ts),
+# así que un pedido pagado desaparece de esta lista en cuanto Ariadna confirma su
+# fecha, igual que ya pasaba con encargo.
 _CONSULTA = """
-select o.id, o.created_at, o.description, o.guest_nombre, p.full_name, p.company_name,
-       o.recogida_fecha, o.guest_telefono, o.nif, o.es_empresa, o.total_cents
+select o.id, o.created_at, o.kind, o.payment_status, o.description, o.guest_nombre,
+       p.full_name, p.company_name, o.recogida_fecha, o.guest_telefono, o.nif,
+       o.es_empresa, o.total_cents
 from orders o
 left join profiles p on p.id = o.user_id
-where o.kind = 'encargo'
-  and o.payment_status is distinct from 'pagado'
+where o.kind <> 'b2b'
   and not o.fecha_confirmada_por_operador
 order by o.created_at desc
 """
@@ -61,6 +77,8 @@ async def solicitudes_pendientes() -> tuple[list[SolicitudPendiente], bool]:
             creado_en=fila["created_at"],
             descripcion=fila["description"],
             cliente=fila["company_name"] or fila["full_name"] or fila["guest_nombre"] or "Sin nombre",
+            kind=fila["kind"],
+            payment_status=fila["payment_status"],
             recogida_fecha=fila["recogida_fecha"].isoformat() if fila["recogida_fecha"] else None,
             guest_telefono=fila["guest_telefono"],
             nif=fila["nif"],

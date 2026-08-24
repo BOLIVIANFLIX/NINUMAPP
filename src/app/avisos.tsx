@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AsuntoEmail, AsuntoPedidoWeb, SolicitudDetalle } from '@/components/avisos-pendientes';
+import { AsuntoEmail, SolicitudDetalle } from '@/components/avisos-pendientes';
 import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -18,7 +18,6 @@ import {
   obtenerGrandFoliesPendientes,
   type EncargoPendiente,
   type PedidoGrandFolies,
-  type PedidoWebPendiente,
   type SolicitudPendiente,
 } from '@/lib/api';
 
@@ -36,13 +35,11 @@ export default function AvisosScreen() {
   const navigation = useNavigation();
   const [pedidoGF, setPedidoGF] = useState<PedidoGrandFolies | null>(null);
   const [asuntoEmail, setAsuntoEmail] = useState<EncargoPendiente | null>(null);
-  const [asuntoPedidoWeb, setAsuntoPedidoWeb] = useState<PedidoWebPendiente | null>(null);
   const [solicitudAbierta, setSolicitudAbierta] = useState<SolicitudPendiente | null>(null);
 
   function volverAlPrincipal() {
     setPedidoGF(null);
     setAsuntoEmail(null);
-    setAsuntoPedidoWeb(null);
     setSolicitudAbierta(null);
   }
 
@@ -58,7 +55,6 @@ export default function AvisosScreen() {
   const correosGmail = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes, refetchInterval: 60_000 });
 
   if (asuntoEmail) return <AsuntoEmail encargo={asuntoEmail} onVolver={() => setAsuntoEmail(null)} />;
-  if (asuntoPedidoWeb) return <AsuntoPedidoWeb pedido={asuntoPedidoWeb} onVolver={() => setAsuntoPedidoWeb(null)} />;
   if (solicitudAbierta) return <SolicitudDetalle solicitud={solicitudAbierta} onVolver={() => setSolicitudAbierta(null)} />;
 
   if (pedidoGF) {
@@ -149,7 +145,7 @@ export default function AvisosScreen() {
             </>
           )}
 
-          <SectionLabel>Correo sin resolver</SectionLabel>
+          <SectionLabel>Pendientes de revisar</SectionLabel>
           {avisos.data?.aviso && (
             <ThemedText type="small" themeColor="textSecondary">
               ℹ️ {avisos.data.aviso}
@@ -157,7 +153,7 @@ export default function AvisosScreen() {
           )}
           {avisos.data?.conectado && avisos.data.solicitudes.length === 0 && (
             <ThemedText type="small" themeColor="textSecondary">
-              Sin contactos de correo pendientes.
+              Nada pendiente de revisar.
             </ThemedText>
           )}
           {!!avisos.data?.solicitudes.length && (
@@ -167,9 +163,9 @@ export default function AvisosScreen() {
                   key={s.id}
                   last={i === avisos.data!.solicitudes.length - 1}
                   onPress={() => setSolicitudAbierta(s)}
-                  left={<NotifIcono icono="✉️" color={theme.info} bg={theme.infoSoft} />}
+                  left={<NotifIcono icono={s.kind === 'encargo' ? '✉️' : '🛍️'} color={theme.info} bg={theme.infoSoft} />}
                   title={s.cliente}
-                  subtitle={s.descripcion}
+                  subtitle={s.descripcion || (s.kind === 'tienda' ? 'Pedido de la tienda' : s.kind === 'edicion' ? 'Edición especial' : s.kind)}
                 />
               ))}
             </ListCard>
@@ -211,24 +207,6 @@ export default function AvisosScreen() {
                     left={<NotifIcono icono="📧" color={theme.info} bg={theme.infoSoft} />}
                     title={c.asunto || '(sin asunto)'}
                     subtitle={`${c.de}${c.resumen ? ` · ${c.resumen}` : ''}`}
-                  />
-                ))}
-              </ListCard>
-            </>
-          )}
-
-          {!!pendientesAgente.data?.pedidos_web.length && (
-            <>
-              <SectionLabel>Pedidos de la web pendientes de revisar</SectionLabel>
-              <ListCard>
-                {pendientesAgente.data.pedidos_web.map((p, i) => (
-                  <ListRow
-                    key={p.locator}
-                    last={i === pendientesAgente.data!.pedidos_web.length - 1}
-                    onPress={() => setAsuntoPedidoWeb(p)}
-                    left={<NotifIcono icono="🛍️" color={theme.success} bg={theme.successSoft} />}
-                    title={`Pedido de la web · ${p.cliente ?? 'Cliente'}`}
-                    subtitle={`${p.kind ?? ''} · pide para ${p.recogida_fecha ? new Date(p.recogida_fecha).toLocaleDateString('es-ES') : 'sin fecha'}`}
                   />
                 ))}
               </ListCard>

@@ -227,6 +227,8 @@ export interface SolicitudPendiente {
   creado_en: string;
   descripcion: string | null;
   cliente: string;
+  kind: string;
+  payment_status: string | null;
   recogida_fecha: string | null;
   guest_telefono: string | null;
   nif: string | null;

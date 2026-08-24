@@ -30,6 +30,9 @@ const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' 
 const ETIQUETAS_CATEGORIA: Record<string, string> = {
   encargo: 'Encargo', duda: 'Duda', queja: 'Queja', proveedor: 'Proveedor', otro: 'Otro',
 };
+const ETIQUETAS_KIND: Record<string, string> = {
+  encargo: 'Encargo', tienda: 'Tienda', edicion: 'Edición especial',
+};
 
 // Réplica de /panel/avisos/email/{id} -- ficha + "Asignar un día" que crea un pedido
 // real en la web (ninuma_web_client.crear_pedido) vía el bridge de ninuma-agente.
@@ -172,11 +175,15 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
           </ThemedText>
 
           <Ficha style={styles.ficha}>
-            <FilaFicha etiqueta="Descripción" valor={solicitud.descripcion ? decodificarEntidadesHtml(solicitud.descripcion) : '—'} multilinea />
+            <FilaFicha etiqueta="Tipo" valor={ETIQUETAS_KIND[solicitud.kind] ?? solicitud.kind} />
+            {solicitud.descripcion && (
+              <FilaFicha etiqueta="Descripción" valor={decodificarEntidadesHtml(solicitud.descripcion)} multilinea />
+            )}
             <FilaFicha
               etiqueta="Fecha solicitada"
               valor={solicitud.recogida_fecha ? new Date(`${solicitud.recogida_fecha}T00:00:00`).toLocaleDateString('es-ES') : 'No la ha indicado el cliente'}
             />
+            <FilaFicha etiqueta="Pago" valor={solicitud.payment_status === 'pagado' ? '✅ Ya pagado' : 'Pendiente de pago'} />
             <FilaFicha etiqueta="Recibido" valor={new Date(solicitud.creado_en).toLocaleDateString('es-ES')} last />
           </Ficha>
           <ThemedText type="small" themeColor="textSecondary" style={styles.nota}>
