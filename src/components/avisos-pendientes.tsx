@@ -123,6 +123,7 @@ export function AsuntoEmail({ encargo, onVolver }: { encargo: EncargoPendiente; 
 export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: SolicitudPendiente; onVolver: () => void }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const yaPagado = solicitud.payment_status === 'pagado';
   const [fecha, setFecha] = useState(solicitud.recogida_fecha ?? '');
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [nombre, setNombre] = useState(solicitud.cliente === 'Sin nombre' ? '' : solicitud.cliente);
@@ -138,8 +139,13 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
       setError('Falta la fecha.');
       return;
     }
-    const precioNum = precio.trim() ? Number(precio.replace(',', '.')) : null;
-    if (precio.trim() && Number.isNaN(precioNum)) {
+    // Ariadna, 2026-08-25: "el precio no debería poder editarlo ya que es algo ya
+    // pagado" -- si el pedido ya está cobrado (Stripe), lo cobrado es lo cobrado;
+    // tocar total_cents aquí no corrige ningún cargo real, solo desincroniza el
+    // registro frente a lo que de verdad se pagó. Editable solo mientras aún no se
+    // ha cobrado (encargo pendiente de pago).
+    const precioNum = !yaPagado && precio.trim() ? Number(precio.replace(',', '.')) : null;
+    if (!yaPagado && precio.trim() && Number.isNaN(precioNum)) {
       setError('El precio no es un número válido.');
       return;
     }
@@ -220,14 +226,22 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
                 style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
               />
             )}
-            <TextInput
-              value={precio}
-              onChangeText={setPrecio}
-              placeholder="Precio (€)"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="decimal-pad"
-              style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
-            />
+            {yaPagado ? (
+              precio && (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Precio cobrado: {precio} € (ya pagado, no editable)
+                </ThemedText>
+              )
+            ) : (
+              <TextInput
+                value={precio}
+                onChangeText={setPrecio}
+                placeholder="Precio (€)"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="decimal-pad"
+                style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+              />
+            )}
           </View>
 
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>FECHA DE ENTREGA</ThemedText>
