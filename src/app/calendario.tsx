@@ -35,8 +35,18 @@ function finMes(fecha: Date): Date {
   return new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0, 23, 59, 59);
 }
 
+// OJO: nunca usar fecha.toISOString() aquí -- convierte a UTC y, en Madrid
+// (adelantada respecto a UTC), la medianoche local de un día cae en la tarde/noche
+// UTC del día ANTERIOR. Eso desplazaba los eventos un día en la rejilla y, al
+// construir desde/hasta para la consulta, podía dejar fuera el borde del mes
+// (bug real: Ariadna, 2026-08-25 -- "veo los eventos todos un día después" y
+// pedidos de tienda que ni aparecían). Se usan los componentes de fecha LOCAL,
+// igual que ya hace mismoDia() más abajo.
 function isoFecha(fecha: Date): string {
-  return fecha.toISOString().slice(0, 10);
+  const y = fecha.getFullYear();
+  const m = String(fecha.getMonth() + 1).padStart(2, '0');
+  const d = String(fecha.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function mismoDia(a: Date, b: Date): boolean {
