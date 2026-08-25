@@ -46,6 +46,7 @@ _DEFAULTS: dict[str, tuple[str, bool]] = {
     "resumen_papel_semanal": ("Resumen de papel semanal", False),
     "subida_precios": ("Subida de precios de ingredientes", False),
     "alarma_ha": ("Alarma de Home Assistant", False),
+    "boletin_suscripcion": ("Nueva suscripción al boletín", True),
 }
 
 
