@@ -48,6 +48,14 @@ export function B2BCarritoConfirmar({ pedido, onVolver, onResuelto }: { pedido: 
   }
 
   function pedirConfirmacion() {
+    // Nada impedía confirmar (generar el albarán real, irreversible) sin haber
+    // fijado antes la fecha de entrega -- a diferencia de Grand Folies, aquí la
+    // fecha nace en blanco y es Ariadna quien la pone al confirmar (bug real,
+    // revisión de código 2026-08-25).
+    if (!fecha) {
+      Alert.alert('Falta la fecha de entrega', 'Elige un día en el calendario antes de confirmar este pedido.');
+      return;
+    }
     Alert.alert(
       'Confirmar pedido B2B',
       'Esto genera el albarán real: consume numeración, descuenta stock en Grocy y se apunta en la contabilidad. No se puede deshacer desde la app. ¿Continuar?',
@@ -252,7 +260,7 @@ export function B2BCarritoConfirmar({ pedido, onVolver, onResuelto }: { pedido: 
           ) : (
             <>
               <View style={styles.botonesFila}>
-                <BotonPrimario texto="Confirmar y generar" onPress={pedirConfirmacion} />
+                <BotonPrimario texto="Confirmar y generar" onPress={pedirConfirmacion} disabled={!fecha} />
               </View>
               <Pressable onPress={pedirDescarte} style={styles.botonSecundario}>
                 <ThemedText type="smallBold" themeColor="danger">
