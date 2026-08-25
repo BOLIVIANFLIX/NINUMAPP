@@ -138,6 +138,7 @@ export interface Pedido {
   payment_status: string | null;
   descripcion: string | null;
   cliente: string;
+  guest_email: string | null;
   guest_telefono: string | null;
   nif: string | null;
   es_empresa: boolean | null;
@@ -156,6 +157,41 @@ export interface RespuestaPedidos extends RespuestaConAviso<Pedido> {
 export async function obtenerPedidos(): Promise<RespuestaPedidos> {
   const resp = await api.get('/api/pedidos');
   return resp.data;
+}
+
+// Compradores de Ediciones Especiales -- Ariadna, 2026-08-25: listado de quién ha
+// reservado una cena o comprado un producto de edición, con acceso a su QR/código.
+
+export interface LineaEdicion {
+  nombre: string;
+  unidades: number;
+}
+
+export interface CompradorEdicion {
+  id: string;
+  locator: string | null;
+  cliente: string;
+  guest_telefono: string | null;
+  total_cents: number;
+  recogida_fecha: string | null;
+  es_cena: boolean;
+  checked_in_at: string | null;
+  creado_en: string;
+  edicion_slug: string | null;
+  lineas: LineaEdicion[];
+}
+
+export interface RespuestaCompradoresEdicion extends RespuestaConAviso<CompradorEdicion> {
+  compradores: CompradorEdicion[];
+}
+
+export async function obtenerCompradoresEdicion(): Promise<RespuestaCompradoresEdicion> {
+  const resp = await api.get('/api/pedidos/ediciones');
+  return resp.data;
+}
+
+export function urlPedidoQr(id: string): string {
+  return `${API_URL}/api/pedidos/ediciones/${id}/qr`;
 }
 
 // Mismas acciones que ya ofrece el bot de Telegram en la ficha completa de un
@@ -279,6 +315,7 @@ export interface SolicitudPendiente {
   kind: string;
   payment_status: string | null;
   recogida_fecha: string | null;
+  guest_email: string | null;
   guest_telefono: string | null;
   nif: string | null;
   es_empresa: boolean | null;

@@ -9,6 +9,7 @@ import { Clientes } from '@/components/clientes';
 import { ElegirTipoDocumento } from '@/components/elegir-tipo-documento';
 import { ClienteProfesionalDetalle } from '@/components/cliente-profesional';
 import { DocumentosTodos } from '@/components/documentos-todos';
+import { CompradoresEdicion } from '@/components/compradores-edicion';
 import { PedidoParticularDetalle } from '@/components/pedido-particular-detalle';
 import { PedidoPropioFormulario } from '@/components/pedido-propio-form';
 import { ThemedText } from '@/components/themed-text';
@@ -53,6 +54,7 @@ type Vista =
   | { tipo: 'documento'; numeros: string[]; indice: number }
   | { tipo: 'form-pedido'; pedido: PedidoPropio | null }
   | { tipo: 'pedido-web'; pedido: Pedido }
+  | { tipo: 'compradores-edicion' }
   | { tipo: 'elegir-documento' }
   | { tipo: 'nuevo-albaran' };
 type Sub = 'Profesionales' | 'Particulares';
@@ -123,6 +125,9 @@ export default function PedidosScreen() {
   if (vista.tipo === 'pedido-web') {
     return <PedidoParticularDetalle pedido={vista.pedido} onVolver={() => setVista({ tipo: 'principal' })} />;
   }
+  if (vista.tipo === 'compradores-edicion') {
+    return <CompradoresEdicion onVolver={() => setVista({ tipo: 'principal' })} />;
+  }
   if (vista.tipo === 'elegir-documento') {
     return (
       <ElegirTipoDocumento
@@ -180,6 +185,12 @@ export default function PedidosScreen() {
           </View>
 
           <Segmented opciones={['Profesionales', 'Particulares']} activo={sub} onCambiar={(v) => setSub(v as Sub)} />
+
+          <Pressable onPress={() => setVista({ tipo: 'compradores-edicion' })} style={styles.enlaceEdiciones}>
+            <ThemedText type="link" style={{ color: theme.accent }}>
+              🎟️ Compradores de Ediciones →
+            </ThemedText>
+          </Pressable>
 
           {sub === 'Profesionales' ? (
             <>
@@ -377,6 +388,7 @@ const styles = StyleSheet.create({
   right: { alignItems: 'flex-end' },
   botonAlbaran: { marginTop: Spacing.three, marginBottom: Spacing.two },
   enlaceDocumentos: { marginTop: Spacing.three },
+  enlaceEdiciones: { marginTop: Spacing.three, marginBottom: Spacing.one },
   tarjetaGrupo: { marginBottom: Spacing.two },
   botonCerrarMes: { marginTop: Spacing.two },
 });

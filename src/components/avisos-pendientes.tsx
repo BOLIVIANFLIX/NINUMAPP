@@ -185,6 +185,10 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
             {solicitud.descripcion && (
               <FilaFicha etiqueta="Descripción" valor={decodificarEntidadesHtml(solicitud.descripcion)} multilinea />
             )}
+            {/* Mismos datos que ya muestra el aviso de Telegram (nombre/email/
+                teléfono de quien pagó de verdad) -- Ariadna, 2026-08-25. Solo lectura
+                aquí, igual que en el bot: no hay forma de editar el email ni ahí. */}
+            {solicitud.guest_email && <FilaFicha etiqueta="Email" valor={solicitud.guest_email} />}
             <FilaFicha
               etiqueta="Fecha solicitada"
               valor={solicitud.recogida_fecha ? new Date(`${solicitud.recogida_fecha}T00:00:00`).toLocaleDateString('es-ES') : 'No la ha indicado el cliente'}

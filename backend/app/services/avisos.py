@@ -24,6 +24,7 @@ class SolicitudPendiente(TypedDict):
     kind: str
     payment_status: str | None
     recogida_fecha: str | None
+    guest_email: str | None
     guest_telefono: str | None
     nif: str | None
     es_empresa: bool | None
@@ -46,8 +47,8 @@ class SolicitudPendiente(TypedDict):
 # fecha, igual que ya pasaba con encargo.
 _CONSULTA = """
 select o.id, o.created_at, o.kind, o.payment_status, o.description, o.guest_nombre,
-       p.full_name, p.company_name, o.recogida_fecha, o.guest_telefono, o.nif,
-       o.es_empresa, o.total_cents
+       p.full_name, p.company_name, o.recogida_fecha, o.guest_email, o.guest_telefono,
+       o.nif, o.es_empresa, o.total_cents
 from orders o
 left join profiles p on p.id = o.user_id
 where o.kind <> 'b2b'
@@ -76,10 +77,18 @@ async def solicitudes_pendientes() -> tuple[list[SolicitudPendiente], bool]:
             id=str(fila["id"]),
             creado_en=fila["created_at"],
             descripcion=fila["description"],
-            cliente=fila["company_name"] or fila["full_name"] or fila["guest_nombre"] or "Sin nombre",
+            # guest_nombre primero (no company_name/full_name): es el nombre de
+            # quien de verdad pagó en Stripe en ESE pedido concreto -- el perfil de
+            # la cuenta logueada puede ser otra persona (Ariadna, 2026-08-25: Ramiro
+            # compró con la sesión de Ariadna iniciada, y salía "NINUMA", el nombre
+            # de perfil de ella, en vez de "Ramiro"). No hay pedidos kind='b2b' en
+            # esta consulta (se excluyen aparte), así que no hace falta preferir
+            # company_name aquí.
+            cliente=fila["guest_nombre"] or fila["company_name"] or fila["full_name"] or "Sin nombre",
             kind=fila["kind"],
             payment_status=fila["payment_status"],
             recogida_fecha=fila["recogida_fecha"].isoformat() if fila["recogida_fecha"] else None,
+            guest_email=fila["guest_email"],
             guest_telefono=fila["guest_telefono"],
             nif=fila["nif"],
             es_empresa=fila["es_empresa"],

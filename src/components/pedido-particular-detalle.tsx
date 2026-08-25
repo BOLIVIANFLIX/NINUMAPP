@@ -153,6 +153,7 @@ export function PedidoParticularDetalle({ pedido, onVolver }: { pedido: Pedido; 
             <FilaFicha etiqueta="Tipo" valor={KIND_LABEL[pedido.kind] ?? pedido.kind} />
             <FilaFicha etiqueta="Localizador" valor={pedido.locator ?? '—'} />
             {pedido.descripcion && <FilaFicha etiqueta="Descripción" valor={pedido.descripcion} multilinea />}
+            {pedido.guest_email && <FilaFicha etiqueta="Email" valor={pedido.guest_email} />}
             <FilaFicha etiqueta="Estado" valor={ESTADO_LABEL[pedido.status] ?? pedido.status} />
             <FilaFicha etiqueta="Pago" valor={yaPagado ? '✅ Ya pagado' : '⏳ Pendiente'} last />
           </Ficha>

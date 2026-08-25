@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel
 
 from app.models import Usuario
@@ -87,3 +87,22 @@ async def subir_adjunto(
     if not ok:
         raise HTTPException(status_code=502, detail="No se ha podido subir el archivo.")
     return {"ok": True}
+
+
+@router.get("/ediciones")
+async def ediciones(usuario: Usuario = Depends(usuario_actual)):
+    lista, conectado = await pedidos_service.compradores_ediciones()
+    return {
+        "compradores": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "Supabase todavía no está conectado en NINUMAPP.",
+    }
+
+
+@router.get("/ediciones/{order_id}/qr")
+async def edicion_qr(order_id: str, usuario: Usuario = Depends(usuario_actual)):
+    resultado = await pedidos_service.pedido_qr(order_id)
+    if resultado is None:
+        raise HTTPException(status_code=404, detail="No se ha podido obtener el QR de este pedido.")
+    contenido, content_type = resultado
+    return Response(content=contenido, media_type=content_type)
