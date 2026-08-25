@@ -5,6 +5,7 @@ import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AsuntoEmail, SolicitudDetalle } from '@/components/avisos-pendientes';
+import { B2BCarritoConfirmar } from '@/components/b2b-carrito-confirmar';
 import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -14,9 +15,11 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   obtenerAvisos,
   obtenerAvisosPendientes,
+  obtenerB2BCarritoPendientes,
   obtenerCorreosPendientes,
   obtenerGrandFoliesPendientes,
   type EncargoPendiente,
+  type PedidoB2BCarrito,
   type PedidoGrandFolies,
   type SolicitudPendiente,
 } from '@/lib/api';
@@ -34,11 +37,13 @@ export default function AvisosScreen() {
   const queryClient = useQueryClient();
   const navigation = useNavigation();
   const [pedidoGF, setPedidoGF] = useState<PedidoGrandFolies | null>(null);
+  const [pedidoB2B, setPedidoB2B] = useState<PedidoB2BCarrito | null>(null);
   const [asuntoEmail, setAsuntoEmail] = useState<EncargoPendiente | null>(null);
   const [solicitudAbierta, setSolicitudAbierta] = useState<SolicitudPendiente | null>(null);
 
   function volverAlPrincipal() {
     setPedidoGF(null);
+    setPedidoB2B(null);
     setAsuntoEmail(null);
     setSolicitudAbierta(null);
   }
@@ -51,6 +56,7 @@ export default function AvisosScreen() {
 
   const avisos = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const grandFolies = useQuery({ queryKey: ['avisos', 'grand-folies'], queryFn: obtenerGrandFoliesPendientes });
+  const b2bCarrito = useQuery({ queryKey: ['avisos', 'b2b-carrito'], queryFn: obtenerB2BCarritoPendientes });
   const pendientesAgente = useQuery({ queryKey: ['avisos-pendientes'], queryFn: obtenerAvisosPendientes });
   const correosGmail = useQuery({ queryKey: ['avisos', 'correos'], queryFn: obtenerCorreosPendientes, refetchInterval: 60_000 });
   const refrescandoTodo = useIsFetching() > 0;
@@ -66,6 +72,19 @@ export default function AvisosScreen() {
         onResuelto={() => {
           setPedidoGF(null);
           queryClient.invalidateQueries({ queryKey: ['avisos', 'grand-folies'] });
+        }}
+      />
+    );
+  }
+
+  if (pedidoB2B) {
+    return (
+      <B2BCarritoConfirmar
+        pedido={pedidoB2B}
+        onVolver={() => setPedidoB2B(null)}
+        onResuelto={() => {
+          setPedidoB2B(null);
+          queryClient.invalidateQueries({ queryKey: ['avisos', 'b2b-carrito'] });
         }}
       />
     );
@@ -142,6 +161,24 @@ export default function AvisosScreen() {
                     left={<NotifIcono icono="📄" color={theme.accent} bg={theme.accentSoft} />}
                     title={`Pedido Grand Folies${p.numero_pedido ? ` · ${p.numero_pedido}` : ''}`}
                     subtitle={`${p.lineas.length} línea(s) · entrega ${p.fecha_entrega ?? 'sin fecha'}${p.faltantes?.length ? ' · ⚠️ falta materia prima' : ''}`}
+                  />
+                ))}
+              </ListCard>
+            </>
+          )}
+
+          {!!b2bCarrito.data?.pedidos.length && (
+            <>
+              <SectionLabel>Pedidos B2B del carrito privado</SectionLabel>
+              <ListCard>
+                {b2bCarrito.data.pedidos.map((p, i) => (
+                  <ListRow
+                    key={p.id}
+                    last={i === b2bCarrito.data!.pedidos.length - 1}
+                    onPress={() => setPedidoB2B(p)}
+                    left={<NotifIcono icono="🏢" color={theme.accent} bg={theme.accentSoft} />}
+                    title={`Pedido B2B · ${p.cliente}`}
+                    subtitle={`${p.lineas.length} línea(s) · entrega ${p.fecha_entrega ?? 'sin fecha, pídesela tú'}${p.faltantes?.length ? ' · ⚠️ falta materia prima' : ''}`}
                   />
                 ))}
               </ListCard>

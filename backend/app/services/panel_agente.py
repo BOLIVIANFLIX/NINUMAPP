@@ -264,6 +264,29 @@ async def grand_folies_descartar(id_: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Pedidos B2B del carrito privado en la web -- WBD crea el borrador en cuanto el
+# cliente confirma su pedido (ver /api/b2b-crear-pedido.ts); aquí solo se listan/
+# confirman/descartan, mismo patrón que Grand Folies.
+# ---------------------------------------------------------------------------
+
+
+async def b2b_carrito_pendientes() -> tuple[list[dict], bool]:
+    datos = await _get("/api/ninumapp/b2b-carrito/pendientes")
+    return (datos, True) if datos is not None else ([], False)
+
+
+async def b2b_carrito_confirmar(id_: str, fecha_entrega: str | None, numero_manual: str | None, lineas_finales: list[dict]) -> dict:
+    return await _post(
+        "/api/ninumapp/b2b-carrito/confirmar",
+        {"id": id_, "fecha_entrega": fecha_entrega, "numero_manual": numero_manual, "lineas_finales": lineas_finales},
+    )
+
+
+async def b2b_carrito_descartar(id_: str) -> None:
+    await _post("/api/ninumapp/b2b-carrito/descartar", {"id": id_})
+
+
+# ---------------------------------------------------------------------------
 # Gestión de usuarios del panel (ninuma-agente) -- distinto del login propio de
 # NINUMAPP (ver app/auth.py): esto administra las cuentas que entran a
 # ninuma-bot.tunga.es/panel, no las de NINUMAPP.

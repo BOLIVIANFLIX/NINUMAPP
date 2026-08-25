@@ -265,6 +265,54 @@ async def grand_folies_descartar(body: DescartarGFBody, usuario: Usuario = Depen
 
 
 # ---------------------------------------------------------------------------
+# Pedidos B2B del carrito privado en la web -- mismo patrón que Grand Folies.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/b2b-carrito/pendientes")
+async def b2b_carrito_pendientes(usuario: Usuario = Depends(usuario_actual)):
+    lista, conectado = await panel_agente.b2b_carrito_pendientes()
+    return {
+        "pedidos": lista,
+        "conectado": conectado,
+        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
+    }
+
+
+class LineaB2BCarrito(BaseModel):
+    referencia: str | None = None
+    descripcion: str
+    cantidad: float
+    precio_unitario: float | None = None
+
+
+class ConfirmarB2BCarritoBody(BaseModel):
+    id: str
+    fecha_entrega: str | None = None
+    numero_manual: str | None = None
+    lineas_finales: list[LineaB2BCarrito]
+
+
+@router.post("/b2b-carrito/confirmar")
+@_manejar_error
+async def b2b_carrito_confirmar(body: ConfirmarB2BCarritoBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.b2b_carrito_confirmar(
+        body.id, body.fecha_entrega, body.numero_manual, [l.model_dump() for l in body.lineas_finales]
+    )
+
+
+class DescartarB2BCarritoBody(BaseModel):
+    id: str
+
+
+@router.post("/b2b-carrito/descartar")
+@_manejar_error
+async def b2b_carrito_descartar(body: DescartarB2BCarritoBody, usuario: Usuario = Depends(usuario_actual)):
+    await panel_agente.b2b_carrito_descartar(body.id)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # Documentos históricos + ficha de cliente -- réplica de /panel/pedidos/documentos,
 # /panel/pedidos/documento(+archivo), /panel/clientes/{nombre}.
 # ---------------------------------------------------------------------------

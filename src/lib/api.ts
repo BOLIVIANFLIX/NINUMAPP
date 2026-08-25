@@ -800,6 +800,53 @@ export async function descartarGrandFolies(id: string): Promise<void> {
   await api.post('/api/pedidos-b2b/grand-folies/descartar', { id });
 }
 
+// --- Pedidos B2B del carrito privado en la web --------------------------------
+
+export interface LineaB2BCarrito {
+  referencia: string | null;
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number | null;
+}
+
+export interface PedidoB2BCarrito {
+  id: string;
+  cliente: string;
+  referencia_pedido: string | null;
+  fecha_entrega: string | null;
+  lineas: LineaB2BCarrito[];
+  faltantes: FaltanteMateriaPrima[] | null;
+  creado_en: string;
+}
+
+export interface RespuestaB2BCarrito extends RespuestaConAviso<PedidoB2BCarrito> {
+  pedidos: PedidoB2BCarrito[];
+}
+
+export async function obtenerB2BCarritoPendientes(): Promise<RespuestaB2BCarrito> {
+  const resp = await api.get('/api/pedidos-b2b/b2b-carrito/pendientes');
+  return resp.data;
+}
+
+export async function confirmarB2BCarrito(
+  id: string,
+  fechaEntrega: string | null,
+  numeroManual: string | null,
+  lineasFinales: LineaB2BCarrito[],
+): Promise<ResultadoAlbaran> {
+  const resp = await api.post('/api/pedidos-b2b/b2b-carrito/confirmar', {
+    id,
+    fecha_entrega: fechaEntrega,
+    numero_manual: numeroManual,
+    lineas_finales: lineasFinales,
+  });
+  return resp.data;
+}
+
+export async function descartarB2BCarrito(id: string): Promise<void> {
+  await api.post('/api/pedidos-b2b/b2b-carrito/descartar', { id });
+}
+
 export interface DocumentoReciente {
   numero: string;
   cliente: string;
