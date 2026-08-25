@@ -35,13 +35,14 @@ class Pedido(TypedDict):
     guest_telefono: str | None
     nif: str | None
     es_empresa: bool | None
+    es_cena: bool
 
 
 _CONSULTA = """
 select
   o.id, o.status, o.created_at, o.total_cents, o.locator, o.kind,
   o.recogida_fecha, o.payment_status, o.description, o.guest_nombre,
-  o.guest_telefono, o.nif, o.es_empresa, p.full_name, p.company_name
+  o.guest_telefono, o.nif, o.es_empresa, o.es_cena, p.full_name, p.company_name
 from orders o
 left join profiles p on p.id = o.user_id
 where o.kind = 'b2b'
@@ -85,6 +86,7 @@ async def pedidos_confirmados() -> tuple[list[Pedido], bool]:
             guest_telefono=fila["guest_telefono"],
             nif=fila["nif"],
             es_empresa=fila["es_empresa"],
+            es_cena=fila["es_cena"],
         )
         for fila in filas
     ], True

@@ -141,6 +141,7 @@ export interface Pedido {
   guest_telefono: string | null;
   nif: string | null;
   es_empresa: boolean | null;
+  es_cena: boolean;
 }
 
 export interface RespuestaConAviso<T> {

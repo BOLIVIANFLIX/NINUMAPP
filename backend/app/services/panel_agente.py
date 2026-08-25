@@ -599,6 +599,18 @@ async def catalogo_tienda() -> tuple[list[dict], bool]:
 # ---------------------------------------------------------------------------
 
 
+async def gmail_ids_resueltos(gmail_ids: list[str]) -> list[str]:
+    """Subconjunto de `gmail_ids` que ninuma-agente ya clasificó y resolvió del todo
+    (sin ningún rastro pendiente en la app) -- para no mostrarlos en "Correos sin
+    leer" sin ninguna acción posible. Falla en silencio a lista vacía (nada se
+    filtra) si ninuma-agente no responde, igual que el resto de esta integración."""
+    try:
+        datos = await _post("/api/ninumapp/gmail/ids-resueltos", {"gmail_ids": gmail_ids})
+    except PanelAgenteError:
+        return []
+    return datos.get("resueltos", []) if datos else []
+
+
 async def email_asignar_dia(id_: int, fecha: str, descripcion: str) -> dict:
     return await _post("/api/ninumapp/avisos/email/asignar-dia", {"id": id_, "fecha": fecha, "descripcion": descripcion})
 

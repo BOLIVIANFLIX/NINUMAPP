@@ -28,6 +28,7 @@ from typing import TypedDict
 import httpx
 
 from app.services import google_auth
+from app.services import panel_agente
 
 
 class CorreoPendiente(TypedDict):
@@ -55,6 +56,14 @@ async def correos_pendientes(limite: int = 20) -> tuple[list[CorreoPendiente], b
             )
             lista.raise_for_status()
             ids = [m["id"] for m in lista.json().get("messages", [])]
+
+            # Ariadna, 2026-08-25: un correo que ninuma-agente ya clasificó y resolvió
+            # del todo (p.ej. el aviso de Formspree de un contacto que la web ya creó
+            # directamente) se quedaba aquí para siempre sin ninguna acción posible --
+            # solo desaparecía si se marcaba leído a mano en Gmail. Se filtran antes de
+            # gastar una llamada a la API de detalle por cada uno.
+            resueltos = set(await panel_agente.gmail_ids_resueltos(ids))
+            ids = [id_ for id_ in ids if id_ not in resueltos]
 
             correos: list[CorreoPendiente] = []
             for id_ in ids:

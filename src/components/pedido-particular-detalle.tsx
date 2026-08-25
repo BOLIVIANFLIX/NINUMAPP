@@ -72,7 +72,7 @@ export function PedidoParticularDetalle({ pedido, onVolver }: { pedido: Pedido; 
     setError(null);
     try {
       await editarPedido(pedido.id, {
-        ...(fecha ? { fecha } : {}),
+        ...(!pedido.es_cena && fecha ? { fecha } : {}),
         ...(nombre.trim() ? { nombre: nombre.trim() } : {}),
         ...(telefono.trim() ? { telefono: telefono.trim() } : {}),
         ...(esEmpresa && nif.trim() ? { nif: nif.trim() } : {}),
@@ -235,20 +235,35 @@ export function PedidoParticularDetalle({ pedido, onVolver }: { pedido: Pedido; 
             )}
           </View>
 
-          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>FECHA DE ENTREGA</ThemedText>
-          <Pressable onPress={() => setMostrarCalendario((v) => !v)} style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText style={!fecha ? { color: theme.textSecondary } : undefined}>
-              {fecha ? new Date(`${fecha}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Toca para elegir un día en el calendario'}
-            </ThemedText>
-          </Pressable>
-          {mostrarCalendario && (
-            <SelectorFechaCalendario
-              fechaSeleccionada={fecha || null}
-              onSeleccionar={(iso) => {
-                setFecha(iso);
-                setMostrarCalendario(false);
-              }}
-            />
+          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>
+            {pedido.es_cena ? 'FECHA DE LA CENA' : 'FECHA DE ENTREGA'}
+          </ThemedText>
+          {pedido.es_cena ? (
+            <View style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
+              <ThemedText>
+                {fecha ? new Date(`${fecha}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Sin fecha'}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Fija desde la reserva -- no se puede cambiar aquí.
+              </ThemedText>
+            </View>
+          ) : (
+            <>
+              <Pressable onPress={() => setMostrarCalendario((v) => !v)} style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
+                <ThemedText style={!fecha ? { color: theme.textSecondary } : undefined}>
+                  {fecha ? new Date(`${fecha}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Toca para elegir un día en el calendario'}
+                </ThemedText>
+              </Pressable>
+              {mostrarCalendario && (
+                <SelectorFechaCalendario
+                  fechaSeleccionada={fecha || null}
+                  onSeleccionar={(iso) => {
+                    setFecha(iso);
+                    setMostrarCalendario(false);
+                  }}
+                />
+              )}
+            </>
           )}
 
           {error && <ThemedText type="small" themeColor="danger" style={styles.error}>{error}</ThemedText>}
