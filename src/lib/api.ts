@@ -138,6 +138,9 @@ export interface Pedido {
   payment_status: string | null;
   descripcion: string | null;
   cliente: string;
+  guest_telefono: string | null;
+  nif: string | null;
+  es_empresa: boolean | null;
 }
 
 export interface RespuestaConAviso<T> {
@@ -152,6 +155,51 @@ export interface RespuestaPedidos extends RespuestaConAviso<Pedido> {
 export async function obtenerPedidos(): Promise<RespuestaPedidos> {
   const resp = await api.get('/api/pedidos');
   return resp.data;
+}
+
+// Mismas acciones que ya ofrece el bot de Telegram en la ficha completa de un
+// pedido confirmado -- Ariadna, 2026-08-25.
+
+export interface CambiosPedido {
+  fecha?: string;
+  nombre?: string;
+  telefono?: string;
+  nif?: string;
+  es_empresa?: boolean;
+  precio_cents?: number;
+}
+
+export async function editarPedido(id: string, cambios: CambiosPedido): Promise<void> {
+  await api.post(`/api/pedidos/${id}/editar`, cambios);
+}
+
+export async function marcarPedidoEntregado(id: string): Promise<{ ok: boolean; status: string | null }> {
+  const resp = await api.post(`/api/pedidos/${id}/entregado`);
+  return resp.data;
+}
+
+export async function marcarPedidoPagado(id: string): Promise<void> {
+  await api.post(`/api/pedidos/${id}/pagado`);
+}
+
+export interface AdjuntoPedido {
+  id: string;
+  tipo: 'pedido' | 'albaran';
+  nombre: string;
+  creadoEn: string;
+  url: string | null;
+}
+
+export async function obtenerAdjuntosPedido(id: string): Promise<AdjuntoPedido[]> {
+  const resp = await api.get(`/api/pedidos/${id}/adjuntos`);
+  return resp.data.adjuntos;
+}
+
+export async function subirAdjuntoPedido(id: string, tipo: 'pedido' | 'albaran', uri: string): Promise<void> {
+  const datos = new FormData();
+  datos.append('tipo', tipo);
+  datos.append('file', { uri, name: 'adjunto.jpg', type: 'image/jpeg' } as unknown as Blob);
+  await api.post(`/api/pedidos/${id}/adjuntos`, datos);
 }
 
 export interface AlarmaHA {

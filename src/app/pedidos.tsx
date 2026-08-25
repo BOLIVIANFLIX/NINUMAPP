@@ -9,6 +9,7 @@ import { Clientes } from '@/components/clientes';
 import { ElegirTipoDocumento } from '@/components/elegir-tipo-documento';
 import { ClienteProfesionalDetalle } from '@/components/cliente-profesional';
 import { DocumentosTodos } from '@/components/documentos-todos';
+import { PedidoParticularDetalle } from '@/components/pedido-particular-detalle';
 import { PedidoPropioFormulario } from '@/components/pedido-propio-form';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -51,6 +52,7 @@ type Vista =
   | { tipo: 'documentos' }
   | { tipo: 'documento'; numeros: string[]; indice: number }
   | { tipo: 'form-pedido'; pedido: PedidoPropio | null }
+  | { tipo: 'pedido-web'; pedido: Pedido }
   | { tipo: 'elegir-documento' }
   | { tipo: 'nuevo-albaran' };
 type Sub = 'Profesionales' | 'Particulares';
@@ -117,6 +119,9 @@ export default function PedidosScreen() {
   }
   if (vista.tipo === 'form-pedido') {
     return <PedidoPropioFormulario pedido={vista.pedido} onVolver={() => setVista({ tipo: 'principal' })} />;
+  }
+  if (vista.tipo === 'pedido-web') {
+    return <PedidoParticularDetalle pedido={vista.pedido} onVolver={() => setVista({ tipo: 'principal' })} />;
   }
   if (vista.tipo === 'elegir-documento') {
     return (
@@ -268,7 +273,12 @@ export default function PedidosScreen() {
               {!!webQuery.data?.pedidos.length && (
                 <ListCard>
                   {webQuery.data.pedidos.map((p, i) => (
-                    <PedidoWebRow key={p.id} pedido={p} last={i === webQuery.data!.pedidos.length - 1} />
+                    <PedidoWebRow
+                      key={p.id}
+                      pedido={p}
+                      last={i === webQuery.data!.pedidos.length - 1}
+                      onPress={() => setVista({ tipo: 'pedido-web', pedido: p })}
+                    />
                   ))}
                 </ListCard>
               )}
@@ -315,11 +325,12 @@ export default function PedidosScreen() {
   );
 }
 
-function PedidoWebRow({ pedido, last }: { pedido: Pedido; last: boolean }) {
+function PedidoWebRow({ pedido, last, onPress }: { pedido: Pedido; last: boolean; onPress: () => void }) {
   const etiqueta = ETIQUETAS_KIND[pedido.kind] ?? { texto: pedido.kind, color: 'accent' as PillColor };
   return (
     <ListRow
       last={last}
+      onPress={onPress}
       left={<Pill color={etiqueta.color}>{etiqueta.texto}</Pill>}
       title={pedido.cliente}
       subtitle={[pedido.status, pedido.locator, pedido.descripcion].filter(Boolean).join(' · ')}

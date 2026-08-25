@@ -13,7 +13,9 @@ from datetime import datetime
 from typing import TypedDict
 
 import asyncpg
+import httpx
 
+from app.config import settings
 from app.services import supabase_db
 
 logger = logging.getLogger(__name__)
@@ -30,13 +32,16 @@ class Pedido(TypedDict):
     payment_status: str | None
     descripcion: str | None
     cliente: str
+    guest_telefono: str | None
+    nif: str | None
+    es_empresa: bool | None
 
 
 _CONSULTA = """
 select
   o.id, o.status, o.created_at, o.total_cents, o.locator, o.kind,
   o.recogida_fecha, o.payment_status, o.description, o.guest_nombre,
-  p.full_name, p.company_name
+  o.guest_telefono, o.nif, o.es_empresa, p.full_name, p.company_name
 from orders o
 left join profiles p on p.id = o.user_id
 where o.kind = 'b2b'
@@ -77,6 +82,84 @@ async def pedidos_confirmados() -> tuple[list[Pedido], bool]:
             payment_status=fila["payment_status"],
             descripcion=fila["description"],
             cliente=fila["company_name"] or fila["full_name"] or fila["guest_nombre"] or "Sin nombre",
+            guest_telefono=fila["guest_telefono"],
+            nif=fila["nif"],
+            es_empresa=fila["es_empresa"],
         )
         for fila in filas
     ], True
+
+
+class AdjuntoPedido(TypedDict):
+    id: str
+    tipo: str
+    nombre: str
+    creadoEn: str
+    url: str | None
+
+
+class ResultadoAccionPedido(TypedDict):
+    ok: bool
+    status: str | None
+
+
+# ---------------------------------------------------------------------------
+# Mismas acciones que ya ofrece el bot de Telegram en la ficha completa de un
+# pedido confirmado (➡️ Pasar a Entregado, 💰 Marcar pagado, 📎 Adjuntar foto/PDF,
+# 🖼 Ver adjuntos) -- Ariadna, 2026-08-25: quiere las mismas opciones desde NINUMAPP
+# en Pedidos > Particulares. NINUMAPP solo tiene lectura en Supabase (rol
+# ninumapp_lectura), así que estas acciones pasan por WBD (mismo patrón que
+# services/avisos.py.editar_solicitud), vía los endpoints /api/ninumapp-pedido-*
+# con el secreto compartido NINUMAPP_API_SECRET.
+# ---------------------------------------------------------------------------
+
+
+async def pedido_accion(order_id: str, accion: str) -> ResultadoAccionPedido:
+    if not settings.ninumapp_api_secret:
+        return {"ok": False, "status": None}
+    try:
+        async with httpx.AsyncClient(timeout=15) as cliente:
+            resp = await cliente.post(
+                f"{settings.wbd_url.rstrip('/')}/api/ninumapp-pedido-accion",
+                headers={"X-Notificaciones-Secret": settings.ninumapp_api_secret, "Content-Type": "application/json"},
+                json={"orderId": order_id, "accion": accion},
+            )
+            if resp.status_code != 200:
+                return {"ok": False, "status": None}
+            datos = resp.json()
+            return {"ok": True, "status": datos.get("status")}
+    except httpx.HTTPError:
+        return {"ok": False, "status": None}
+
+
+async def pedido_adjuntos_listar(order_id: str) -> list[AdjuntoPedido]:
+    if not settings.ninumapp_api_secret:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=15) as cliente:
+            resp = await cliente.get(
+                f"{settings.wbd_url.rstrip('/')}/api/ninumapp-pedido-adjuntos",
+                headers={"X-Notificaciones-Secret": settings.ninumapp_api_secret},
+                params={"orderId": order_id},
+            )
+            if resp.status_code != 200:
+                return []
+            return resp.json().get("adjuntos", [])
+    except httpx.HTTPError:
+        return []
+
+
+async def pedido_adjunto_subir(order_id: str, tipo: str, nombre_archivo: str, contenido: bytes, content_type: str) -> bool:
+    if not settings.ninumapp_api_secret:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=30) as cliente:
+            resp = await cliente.post(
+                f"{settings.wbd_url.rstrip('/')}/api/ninumapp-pedido-adjuntos",
+                headers={"X-Notificaciones-Secret": settings.ninumapp_api_secret},
+                data={"orderId": order_id, "tipo": tipo},
+                files={"file": (nombre_archivo, contenido, content_type)},
+            )
+            return resp.status_code == 200
+    except httpx.HTTPError:
+        return False
