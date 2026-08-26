@@ -1,13 +1,13 @@
 {
   "expo": {
     "name": "NINUMAPP",
-    "slug": "ninumapp",
+    "slug": "rafer",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/488abd4d-f78d-4cfe-84c9-fd98f57ccbd0"
+      "url": "https://u.expo.dev/2e87bfb8-83a8-48d5-89c3-74dabdbe9b6f"
     },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -64,12 +64,12 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "owner": "rafers-team",
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "488abd4d-f78d-4cfe-84c9-fd98f57ccbd0"
+        "projectId": "2e87bfb8-83a8-48d5-89c3-74dabdbe9b6f"
       }
-    },
-    "owner": "ninumapp"
+    }
   }
 }
