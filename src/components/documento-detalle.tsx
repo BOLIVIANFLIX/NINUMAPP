@@ -12,7 +12,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { marcarFacturado, mensajeError, obtenerDocumentoDetalle, urlDocumentoArchivo } from '@/lib/api';
+import { marcarCobrado, marcarFacturado, mensajeError, obtenerDocumentoDetalle, urlDocumentoArchivo } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -60,7 +60,7 @@ export function DocumentoDetalle({
 }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const [accionEnCurso, setAccionEnCurso] = useState<'ver' | 'compartir' | 'pdf' | 'docx' | 'facturar' | null>(null);
+  const [accionEnCurso, setAccionEnCurso] = useState<'ver' | 'compartir' | 'pdf' | 'docx' | 'facturar' | 'cobrar' | null>(null);
   const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['documento', numero], queryFn: () => obtenerDocumentoDetalle(numero) });
 
   async function facturar() {
@@ -70,6 +70,18 @@ export function DocumentoDetalle({
       await queryClient.invalidateQueries({ queryKey: ['documento', numero] });
     } catch (err) {
       Alert.alert('No se ha podido facturar', mensajeError(err));
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }
+
+  async function cobrar() {
+    setAccionEnCurso('cobrar');
+    try {
+      await marcarCobrado(numero);
+      await queryClient.invalidateQueries({ queryKey: ['documento', numero] });
+    } catch (err) {
+      Alert.alert('No se ha podido marcar cobrado', mensajeError(err));
     } finally {
       setAccionEnCurso(null);
     }
@@ -178,21 +190,40 @@ export function DocumentoDetalle({
                 <FilaFicha etiqueta="Fecha" valor={data.fecha_documento} />
                 <FilaFicha etiqueta="Total" valor={eur.format(data.total)} last={data.facturado === undefined} />
                 {data.facturado !== undefined && (
-                  <FilaFicha etiqueta="Facturado" valor={data.facturado ? '✅ Sí' : 'Todavía no'} last />
+                  <FilaFicha etiqueta="Facturado" valor={data.facturado ? '✅ Sí' : 'Todavía no'} />
+                )}
+                {data.cobrado !== undefined && (
+                  <FilaFicha etiqueta="Cobrado" valor={data.cobrado ? '✅ Sí' : 'Todavía no'} last />
                 )}
               </Ficha>
 
-              {data.facturado === false && (
-                <Pressable
-                  onPress={facturar}
-                  disabled={!!accionEnCurso}
-                  style={[styles.botonFacturar, { borderColor: theme.accent, opacity: accionEnCurso ? 0.5 : 1 }]}>
-                  {accionEnCurso === 'facturar' ? <ActivityIndicator color={theme.accent} /> : (
-                    <ThemedText type="smallBold" style={{ color: theme.accent }}>
-                      🧾 Marcar facturado
-                    </ThemedText>
+              {(data.facturado === false || data.cobrado === false) && (
+                <View style={styles.filaBotones}>
+                  {data.facturado === false && (
+                    <Pressable
+                      onPress={facturar}
+                      disabled={!!accionEnCurso}
+                      style={[styles.botonFacturar, { flex: 1, borderColor: theme.accent, opacity: accionEnCurso ? 0.5 : 1 }]}>
+                      {accionEnCurso === 'facturar' ? <ActivityIndicator color={theme.accent} /> : (
+                        <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                          🧾 Marcar facturado
+                        </ThemedText>
+                      )}
+                    </Pressable>
                   )}
-                </Pressable>
+                  {data.cobrado === false && (
+                    <Pressable
+                      onPress={cobrar}
+                      disabled={!!accionEnCurso}
+                      style={[styles.botonFacturar, { flex: 1, borderColor: theme.accent, opacity: accionEnCurso ? 0.5 : 1 }]}>
+                      {accionEnCurso === 'cobrar' ? <ActivityIndicator color={theme.accent} /> : (
+                        <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                          💰 Marcar cobrado
+                        </ThemedText>
+                      )}
+                    </Pressable>
+                  )}
+                </View>
               )}
 
               {!!data.lineas?.length && (
