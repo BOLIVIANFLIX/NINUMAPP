@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { File, Paths } from 'expo-file-system';
 import { getContentUriAsync, StorageAccessFramework } from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -12,7 +12,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mensajeError, obtenerDocumentoDetalle, urlDocumentoArchivo } from '@/lib/api';
+import { marcarFacturado, mensajeError, obtenerDocumentoDetalle, urlDocumentoArchivo } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -59,8 +59,21 @@ export function DocumentoDetalle({
   onSiguiente?: () => void;
 }) {
   const theme = useTheme();
-  const [accionEnCurso, setAccionEnCurso] = useState<'ver' | 'compartir' | 'pdf' | 'docx' | null>(null);
+  const queryClient = useQueryClient();
+  const [accionEnCurso, setAccionEnCurso] = useState<'ver' | 'compartir' | 'pdf' | 'docx' | 'facturar' | null>(null);
   const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['documento', numero], queryFn: () => obtenerDocumentoDetalle(numero) });
+
+  async function facturar() {
+    setAccionEnCurso('facturar');
+    try {
+      await marcarFacturado(numero);
+      await queryClient.invalidateQueries({ queryKey: ['documento', numero] });
+    } catch (err) {
+      Alert.alert('No se ha podido facturar', mensajeError(err));
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }
 
   async function ver() {
     setAccionEnCurso('ver');
@@ -163,8 +176,24 @@ export function DocumentoDetalle({
               <Ficha style={styles.ficha}>
                 <FilaFicha etiqueta="Cliente" valor={data.cliente} />
                 <FilaFicha etiqueta="Fecha" valor={data.fecha_documento} />
-                <FilaFicha etiqueta="Total" valor={eur.format(data.total)} last />
+                <FilaFicha etiqueta="Total" valor={eur.format(data.total)} last={data.facturado === undefined} />
+                {data.facturado !== undefined && (
+                  <FilaFicha etiqueta="Facturado" valor={data.facturado ? '✅ Sí' : 'Todavía no'} last />
+                )}
               </Ficha>
+
+              {data.facturado === false && (
+                <Pressable
+                  onPress={facturar}
+                  disabled={!!accionEnCurso}
+                  style={[styles.botonFacturar, { borderColor: theme.accent, opacity: accionEnCurso ? 0.5 : 1 }]}>
+                  {accionEnCurso === 'facturar' ? <ActivityIndicator color={theme.accent} /> : (
+                    <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                      🧾 Marcar facturado
+                    </ThemedText>
+                  )}
+                </Pressable>
+              )}
 
               {!!data.lineas?.length && (
                 <Ficha style={styles.ficha}>
@@ -226,6 +255,7 @@ const styles = StyleSheet.create({
   centro: { marginTop: Spacing.five },
   ficha: { marginBottom: Spacing.two },
   botonVer: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: Spacing.two },
+  botonFacturar: { borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1.5, marginBottom: Spacing.two },
   filaBotones: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.two },
   botonCompartir: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   botonDescargar: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },

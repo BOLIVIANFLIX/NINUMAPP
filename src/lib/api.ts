@@ -1229,6 +1229,11 @@ export interface DocumentoDetalle {
   fecha_documento: string;
   total: number;
   lineas?: LineaDocumento[];
+  /** Solo presentes en documentos B2B (con albarán registrado) -- un documento
+   * particular no los trae, y la pantalla no debe ofrecer marcar facturado/cobrado
+   * para esos. */
+  facturado?: boolean;
+  cobrado?: boolean;
 }
 
 export async function obtenerDocumentoDetalle(numero: string): Promise<DocumentoDetalle> {
