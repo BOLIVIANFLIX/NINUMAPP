@@ -818,6 +818,9 @@ export interface PedidoB2BCarrito {
   cliente: string;
   referencia_pedido: string | null;
   fecha_entrega: string | null;
+  /** Fecha que el cliente pidió al hacer el pedido en la web -- solo una sugerencia
+   * para prellenar el selector, se puede cambiar igual que cualquier otra fecha. */
+  fecha_solicitada: string | null;
   lineas: LineaB2BCarrito[];
   faltantes: FaltanteMateriaPrima[] | null;
   creado_en: string;

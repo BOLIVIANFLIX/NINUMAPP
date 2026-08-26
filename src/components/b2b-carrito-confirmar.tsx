@@ -33,7 +33,9 @@ const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' 
 export function B2BCarritoConfirmar({ pedido, onVolver, onResuelto }: { pedido: PedidoB2BCarrito; onVolver: () => void; onResuelto: () => void }) {
   const theme = useTheme();
   const [lineas, setLineas] = useState<LineaB2BCarrito[]>(pedido.lineas);
-  const [fecha, setFecha] = useState<string | null>(pedido.fecha_entrega);
+  // Si el cliente pidió una fecha al hacer el pedido, se prellena aquí -- Ariadna
+  // sigue pudiendo tocarla para cambiarla antes de confirmar (Ariadna, 2026-08-26).
+  const [fecha, setFecha] = useState<string | null>(pedido.fecha_entrega ?? pedido.fecha_solicitada);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [numeroManual, setNumeroManual] = useState('');
   const [numeroModo, setNumeroModo] = useState<'auto' | 'blank' | 'manual'>('auto');
@@ -222,6 +224,11 @@ export function B2BCarritoConfirmar({ pedido, onVolver, onResuelto }: { pedido: 
           )}
 
           <SectionLabel>Fecha de entrega</SectionLabel>
+          {fecha && fecha === pedido.fecha_solicitada && !pedido.fecha_entrega && (
+            <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: -Spacing.one, marginBottom: Spacing.one }}>
+              📅 Es la fecha que pidió el cliente -- toca para cambiarla si quieres otra.
+            </ThemedText>
+          )}
           <Pressable onPress={() => setMostrarCalendario((v) => !v)} style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
             <ThemedText style={!fecha ? { color: theme.textSecondary } : undefined}>
               {fecha ? new Date(`${fecha}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Toca para elegir un día en el calendario'}
