@@ -3,6 +3,12 @@
     "name": "NINUMAPP",
     "slug": "ninumapp",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/488abd4d-f78d-4cfe-84c9-fd98f57ccbd0"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "app",
