@@ -2,7 +2,7 @@ import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InventarioEscaner } from '@/components/inventario-escaner';
@@ -19,6 +19,7 @@ import {
   obtenerSensores,
   obtenerStockActual,
   urlSnapshotCamara,
+  type CamaraHA,
   type SensorHA,
 } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
@@ -34,6 +35,7 @@ export default function ObradorScreen() {
   const queryClient = useQueryClient();
   const [vista, setVista] = useState<Vista>('obrador');
   const [sub, setSub] = useState<Sub>('Sensores');
+  const [camaraAmpliada, setCamaraAmpliada] = useState<CamaraHA | null>(null);
 
   function volverAlPrincipal() {
     setVista('obrador');
@@ -162,12 +164,12 @@ export default function ObradorScreen() {
 
               {!!sensores.data?.camaras.length && (
                 <>
-                  <SectionLabel>Cámaras (foto actual, se actualiza al abrir)</SectionLabel>
+                  <SectionLabel>Cámaras (toca una para verla en grande)</SectionLabel>
                   <View style={styles.camaraGrid}>
                     {sensores.data.camaras.map((c) => (
-                      <View key={c.entity_id} style={styles.camaraBox}>
+                      <Pressable key={c.entity_id} style={styles.camaraBox} onPress={() => setCamaraAmpliada(c)}>
                         <Image
-                          source={{ uri: urlSnapshotCamara(c.entity_id), headers: { Authorization: `Bearer ${tokenStore.getAccessToken() ?? ''}` } }}
+                          source={{ uri: urlSnapshotCamara(c.entity_id, sensores.dataUpdatedAt), headers: { Authorization: `Bearer ${tokenStore.getAccessToken() ?? ''}` } }}
                           style={[styles.camaraImg, { backgroundColor: theme.backgroundSelected }]}
                           contentFit="cover"
                           transition={150}
@@ -175,7 +177,7 @@ export default function ObradorScreen() {
                         <ThemedText type="small" themeColor="textSecondary" style={styles.camaraEtiqueta}>
                           {c.etiqueta}
                         </ThemedText>
-                      </View>
+                      </Pressable>
                     ))}
                   </View>
                 </>
@@ -235,6 +237,25 @@ export default function ObradorScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      <Modal visible={!!camaraAmpliada} transparent animationType="fade" onRequestClose={() => setCamaraAmpliada(null)}>
+        <Pressable style={styles.camaraModalFondo} onPress={() => setCamaraAmpliada(null)}>
+          {camaraAmpliada && (
+            <>
+              <Image
+                source={{
+                  uri: urlSnapshotCamara(camaraAmpliada.entity_id, sensores.dataUpdatedAt),
+                  headers: { Authorization: `Bearer ${tokenStore.getAccessToken() ?? ''}` },
+                }}
+                style={styles.camaraModalImg}
+                contentFit="contain"
+                transition={150}
+              />
+              <ThemedText type="small" style={styles.camaraModalEtiqueta}>{camaraAmpliada.etiqueta} · toca para cerrar</ThemedText>
+            </>
+          )}
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -281,4 +302,7 @@ const styles = StyleSheet.create({
   camaraBox: { flexGrow: 1, flexBasis: '47%', gap: 4 },
   camaraImg: { width: '100%', aspectRatio: 4 / 3, borderRadius: 14 },
   camaraEtiqueta: { textAlign: 'center' },
+  camaraModalFondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center', padding: Spacing.two },
+  camaraModalImg: { width: '100%', height: '80%' },
+  camaraModalEtiqueta: { color: '#fff', marginTop: Spacing.two, textAlign: 'center' },
 });

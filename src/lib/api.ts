@@ -288,8 +288,12 @@ export async function obtenerSensores(): Promise<RespuestaSensores> {
   return resp.data;
 }
 
-export function urlSnapshotCamara(entityId: string): string {
-  return `${API_URL}/api/obrador/camaras/${entityId}/snapshot`;
+export function urlSnapshotCamara(entityId: string, v?: number): string {
+  // `v` fuerza a que la URL cambie cada vez que se refresca sensores (React Query) --
+  // sin esto, expo-image ve siempre la misma URI y muestra la foto cacheada de la
+  // primera vez que se abrió la pantalla, aunque HA tenga una más reciente (bug real,
+  // Ariadna, 2026-08-26: "las cámaras no actualizan, la imagen es de ayer por la noche").
+  return `${API_URL}/api/obrador/camaras/${entityId}/snapshot${v ? `?v=${v}` : ''}`;
 }
 
 export interface Receta {
