@@ -106,6 +106,12 @@ async def _post(ruta: str, cuerpo: dict[str, Any]) -> dict | None:
             return datos
     except httpx.HTTPError as e:
         raise PanelAgenteError("No se ha podido conectar con ninuma-agente.") from e
+    except ValueError as e:
+        # resp.json() con un cuerpo que no es JSON de verdad (error de gateway,
+        # timeout devuelto como HTML...) -- mismo motivo que _get ya cubre esto
+        # con (httpx.HTTPError, ValueError); a _post/inventario_escanear se les
+        # había quedado corto (revisión de calidad de código, 2026-08-27).
+        raise PanelAgenteError("Respuesta inesperada de ninuma-agente.") from e
 
 
 async def notificar_seguridad(mensaje: str) -> None:
@@ -360,6 +366,8 @@ async def inventario_escanear(imagen: bytes, content_type: str) -> dict:
             return datos
     except httpx.HTTPError as e:
         raise PanelAgenteError("No se ha podido conectar con ninuma-agente.") from e
+    except ValueError as e:
+        raise PanelAgenteError("Respuesta inesperada de ninuma-agente.") from e
 
 
 async def inventario_confirmar(
