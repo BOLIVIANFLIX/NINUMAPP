@@ -81,10 +81,24 @@ class Settings(BaseSettings):
         # Si arranca contra Postgres sin JWT_SECRET fijado en .env, cualquiera
         # podría forjar tokens válidos con este secreto público -- mejor no
         # arrancar que arrancar inseguro.
-        if self.jwt_secret == _JWT_SECRET_INSEGURO and not self.database_url.startswith("sqlite"):
+        #
+        # No basta con comparar contra el placeholder exacto (Ariadna, 2026-08-27,
+        # tras un code-review externo del PR): si JWT_SECRET= queda vacío en .env
+        # (fácil que pase -- .env.example tiene otras variables vacías por
+        # convención), ese chequeo no lo pilla. PyJWT 2.13.0 sí rechaza firmar con
+        # clave vacía (InvalidKeyError), verificado -- así que un secreto vacío no
+        # deja tokens forjables como tal, pero sí deja el login roto en caliente
+        # (500 en el primer login) en vez de fallar aquí, al arrancar, con un
+        # mensaje claro. Un secreto demasiado corto sí sería forjable de verdad
+        # (menos entropía para adivinar/fuerza bruta offline de la firma HMAC), así
+        # que se exige un mínimo razonable -- el secreto real de producción tiene
+        # 64 caracteres, 32 deja margen de sobra sin ser quisquilloso.
+        secreto_insuficiente = not self.jwt_secret or self.jwt_secret == _JWT_SECRET_INSEGURO or len(self.jwt_secret) < 32
+        if secreto_insuficiente and not self.database_url.startswith("sqlite"):
             raise ValueError(
-                "JWT_SECRET no está configurado (usando el valor de desarrollo por defecto) "
-                "en un entorno que no es SQLite local. Fija JWT_SECRET en .env antes de desplegar."
+                "JWT_SECRET no está configurado correctamente (vacío, el valor de desarrollo "
+                "por defecto, o demasiado corto) en un entorno que no es SQLite local. Fija "
+                "JWT_SECRET en .env (al menos 32 caracteres) antes de desplegar."
             )
         return self
 

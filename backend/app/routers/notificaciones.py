@@ -81,8 +81,13 @@ def _verificar_secreto(x_notificaciones_secret: str | None) -> None:
     if not settings.ninumapp_api_secret or not x_notificaciones_secret:
         raise HTTPException(status_code=401, detail="Secreto inválido.")
     # compare_digest en vez de != -- comparación en tiempo constante, evita filtrar
-    # por timing cuánto del secreto coincide.
-    if not hmac.compare_digest(x_notificaciones_secret, settings.ninumapp_api_secret):
+    # por timing cuánto del secreto coincide. Comparando bytes (.encode()), no str
+    # -- Ariadna, 2026-08-27, tras un code-review externo del PR: compare_digest
+    # rechaza con TypeError un str con algún carácter no-ASCII (verificado), y los
+    # headers HTTP se decodifican como latin-1, así que un byte >= 0x80 en esta
+    # cabecera tumbaba la ruta con un 500 en vez de devolver 401. Con bytes no
+    # existe ese caso especial -- cualquier valor compara sin lanzar.
+    if not hmac.compare_digest(x_notificaciones_secret.encode(), settings.ninumapp_api_secret.encode()):
         raise HTTPException(status_code=401, detail="Secreto inválido.")
 
 
