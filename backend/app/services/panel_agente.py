@@ -387,6 +387,14 @@ async def inventario_stock_actual() -> tuple[list[dict], bool]:
     return (datos, True) if datos is not None else ([], False)
 
 
+async def inventario_corregir_stock(producto_id: int, nueva_cantidad: float) -> None:
+    """Corrige el stock de un producto a una cantidad exacta en Grocy -- ver
+    ninuma-agente/grocy_client.corregir_stock. Ariadna, 2026-08-27: quiere poder
+    ajustar el stock sobre la marcha (p.ej. tirar un bote estropeado) sin entrar en
+    Grocy directamente."""
+    await _post("/api/ninumapp/inventario/corregir-stock", {"producto_id": producto_id, "nueva_cantidad": nueva_cantidad})
+
+
 async def inventario_movimientos_recientes() -> tuple[list[dict], bool]:
     datos = await _get("/api/ninumapp/inventario/movimientos-recientes")
     return (datos, True) if datos is not None else ([], False)

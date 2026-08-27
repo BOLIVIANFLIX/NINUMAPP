@@ -100,6 +100,20 @@ async def movimientos_recientes(usuario: Usuario = Depends(usuario_actual)):
     }
 
 
+class CorregirStockBody(BaseModel):
+    producto_id: int
+    nueva_cantidad: float
+
+
+@router.post("/corregir-stock")
+@_manejar_error
+async def corregir_stock(body: CorregirStockBody, usuario: Usuario = Depends(usuario_actual)):
+    if body.nueva_cantidad < 0:
+        raise HTTPException(status_code=400, detail="La cantidad no puede ser negativa.")
+    await panel_agente.inventario_corregir_stock(body.producto_id, body.nueva_cantidad)
+    return {"ok": True}
+
+
 @router.get("/tickets-periodo")
 async def tickets_periodo(desde: str, hasta: str, usuario: Usuario = Depends(usuario_actual)):
     """Zip con las fotos de todos los tickets confirmados en el rango (AAAA-MM-DD),

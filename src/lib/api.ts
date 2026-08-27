@@ -440,6 +440,7 @@ export async function descartarInventario(id: string): Promise<void> {
 }
 
 export interface StockGrocy {
+  producto_id: number;
   producto: string;
   cantidad: number;
 }
@@ -453,9 +454,16 @@ export async function obtenerStockActual(): Promise<RespuestaStockInventario> {
   return resp.data;
 }
 
+/** Corrige el stock de un producto a una cantidad exacta en Grocy -- Ariadna,
+ * 2026-08-27: ajustes sobre la marcha (p.ej. tirar un bote estropeado) sin entrar
+ * en Grocy directamente. */
+export async function corregirStock(productoId: number, nuevaCantidad: number): Promise<void> {
+  await api.post('/api/inventario/corregir-stock', { producto_id: productoId, nueva_cantidad: nuevaCantidad });
+}
+
 export interface MovimientoInventario {
   id: number;
-  tipo: 'ticket_compra' | 'albaran_propio';
+  tipo: 'ticket_compra' | 'albaran_propio' | 'ajuste_manual';
   descripcion: string;
   creado_en: string;
 }

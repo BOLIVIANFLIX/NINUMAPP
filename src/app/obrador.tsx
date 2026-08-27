@@ -2,9 +2,10 @@ import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BotonPrimario } from '@/components/boton-primario';
 import { InventarioEscaner } from '@/components/inventario-escaner';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -13,7 +14,9 @@ import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
+  corregirStock,
   marcarAlarmasVistas,
+  mensajeError,
   obtenerAlarmasRecientes,
   obtenerMovimientosInventario,
   obtenerSensores,
@@ -21,6 +24,7 @@ import {
   urlSnapshotCamara,
   type CamaraHA,
   type SensorHA,
+  type StockGrocy,
 } from '@/lib/api';
 import { tokenStore } from '@/lib/token-store';
 
@@ -36,6 +40,37 @@ export default function ObradorScreen() {
   const [vista, setVista] = useState<Vista>('obrador');
   const [sub, setSub] = useState<Sub>('Sensores');
   const [camaraAmpliada, setCamaraAmpliada] = useState<CamaraHA | null>(null);
+  const [productoEditando, setProductoEditando] = useState<StockGrocy | null>(null);
+  const [nuevaCantidad, setNuevaCantidad] = useState('');
+  const [guardandoStock, setGuardandoStock] = useState(false);
+  const [errorStock, setErrorStock] = useState<string | null>(null);
+
+  function abrirEdicionStock(item: StockGrocy) {
+    setProductoEditando(item);
+    setNuevaCantidad(String(item.cantidad));
+    setErrorStock(null);
+  }
+
+  async function guardarCorreccionStock() {
+    if (!productoEditando) return;
+    const cantidad = Number(nuevaCantidad.replace(',', '.'));
+    if (Number.isNaN(cantidad) || cantidad < 0) {
+      setErrorStock('Cantidad no válida.');
+      return;
+    }
+    setGuardandoStock(true);
+    setErrorStock(null);
+    try {
+      await corregirStock(productoEditando.producto_id, cantidad);
+      await queryClient.invalidateQueries({ queryKey: ['obrador', 'stock-actual'] });
+      await queryClient.invalidateQueries({ queryKey: ['obrador', 'movimientos'] });
+      setProductoEditando(null);
+    } catch (err) {
+      setErrorStock(mensajeError(err));
+    } finally {
+      setGuardandoStock(false);
+    }
+  }
 
   function volverAlPrincipal() {
     setVista('obrador');
@@ -196,6 +231,11 @@ export default function ObradorScreen() {
               </ListCard>
 
               <SectionLabel>Inventario actual (Grocy)</SectionLabel>
+              {!!stock.data?.stock.length && (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.notaStock}>
+                  Toca un producto para corregir su cantidad.
+                </ThemedText>
+              )}
               {stock.isLoading && <ActivityIndicator color={theme.accent} />}
               {stock.data?.aviso && (
                 <ThemedText type="small" themeColor="textSecondary">ℹ️ {stock.data.aviso}</ThemedText>
@@ -207,9 +247,10 @@ export default function ObradorScreen() {
                 <ListCard>
                   {stock.data.stock.map((s, i) => (
                     <ListRow
-                      key={s.producto}
+                      key={s.producto_id}
                       last={i === stock.data!.stock.length - 1}
                       title={s.producto}
+                      onPress={() => abrirEdicionStock(s)}
                       right={<ThemedText type="smallBold">{s.cantidad}</ThemedText>}
                     />
                   ))}
@@ -255,6 +296,33 @@ export default function ObradorScreen() {
             </>
           )}
         </Pressable>
+      </Modal>
+
+      <Modal visible={!!productoEditando} transparent animationType="fade" onRequestClose={() => setProductoEditando(null)}>
+        <View style={styles.stockModalFondo}>
+          <View style={[styles.stockModalCaja, { backgroundColor: theme.backgroundElement }]}>
+            <ThemedText type="subtitle">{productoEditando?.producto}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.notaStock}>
+              Cantidad real en stock -- se corrige directamente en Grocy.
+            </ThemedText>
+            <TextInput
+              value={nuevaCantidad}
+              onChangeText={setNuevaCantidad}
+              keyboardType="decimal-pad"
+              autoFocus
+              style={[styles.stockInput, { color: theme.text, borderColor: theme.separator }]}
+            />
+            {errorStock && <ThemedText type="small" themeColor="danger">{errorStock}</ThemedText>}
+            <View style={styles.stockModalBotones}>
+              <Pressable onPress={() => setProductoEditando(null)} style={styles.stockModalCancelar}>
+                <ThemedText type="smallBold" themeColor="textSecondary">Cancelar</ThemedText>
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <BotonPrimario texto="Guardar" onPress={guardarCorreccionStock} cargando={guardandoStock} />
+              </View>
+            </View>
+          </View>
+        </View>
       </Modal>
     </ThemedView>
   );
@@ -305,4 +373,10 @@ const styles = StyleSheet.create({
   camaraModalFondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center', padding: Spacing.two },
   camaraModalImg: { width: '100%', height: '80%' },
   camaraModalEtiqueta: { color: '#fff', marginTop: Spacing.two, textAlign: 'center' },
+  notaStock: { marginBottom: Spacing.two },
+  stockModalFondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
+  stockModalCaja: { width: '100%', maxWidth: 360, borderRadius: 16, padding: Spacing.four, gap: Spacing.two },
+  stockInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 18 },
+  stockModalBotones: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.two },
+  stockModalCancelar: { paddingHorizontal: 12, paddingVertical: 10 },
 });
