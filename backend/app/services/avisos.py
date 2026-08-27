@@ -22,6 +22,7 @@ class SolicitudPendiente(TypedDict):
     descripcion: str | None
     cliente: str
     kind: str
+    tipo_contacto: str | None
     payment_status: str | None
     recogida_fecha: str | None
     guest_email: str | None
@@ -46,7 +47,7 @@ class SolicitudPendiente(TypedDict):
 # así que un pedido pagado desaparece de esta lista en cuanto Ariadna confirma su
 # fecha, igual que ya pasaba con encargo.
 _CONSULTA = """
-select o.id, o.created_at, o.kind, o.payment_status, o.description, o.guest_nombre,
+select o.id, o.created_at, o.kind, o.tipo_contacto, o.payment_status, o.description, o.guest_nombre,
        p.full_name, p.company_name, o.recogida_fecha, o.guest_email, o.guest_telefono,
        o.nif, o.es_empresa, o.total_cents
 from orders o
@@ -86,6 +87,7 @@ async def solicitudes_pendientes() -> tuple[list[SolicitudPendiente], bool]:
             # company_name aquí.
             cliente=fila["guest_nombre"] or fila["company_name"] or fila["full_name"] or "Sin nombre",
             kind=fila["kind"],
+            tipo_contacto=fila["tipo_contacto"],
             payment_status=fila["payment_status"],
             recogida_fecha=fila["recogida_fecha"].isoformat() if fila["recogida_fecha"] else None,
             guest_email=fila["guest_email"],
@@ -106,6 +108,7 @@ async def editar_solicitud(
     nif: str | None = None,
     es_empresa: bool | None = None,
     precio_cents: int | None = None,
+    tipo_contacto: str | None = None,
 ) -> bool:
     """Edita una solicitud (kind='encargo') directamente en la web -- NINUMAPP no
     puede escribir en Supabase (rol ninumapp_lectura), así que pasa por WBD
@@ -129,6 +132,8 @@ async def editar_solicitud(
         cuerpo["esEmpresa"] = es_empresa
     if precio_cents is not None:
         cuerpo["precioCents"] = precio_cents
+    if tipo_contacto is not None:
+        cuerpo["tipoContacto"] = tipo_contacto
 
     try:
         async with httpx.AsyncClient(timeout=15) as cliente:

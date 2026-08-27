@@ -43,6 +43,7 @@ class EditarSolicitudBody(BaseModel):
     nif: str | None = None
     es_empresa: bool | None = None
     precio_cents: int | None = None
+    tipo_contacto: str | None = None
 
 
 @router.post("/solicitud/{solicitud_id}/editar")
@@ -55,6 +56,7 @@ async def solicitud_editar(solicitud_id: str, body: EditarSolicitudBody, usuario
         nif=body.nif,
         es_empresa=body.es_empresa,
         precio_cents=body.precio_cents,
+        tipo_contacto=body.tipo_contacto,
     )
     if not ok:
         raise HTTPException(status_code=502, detail="No se ha podido guardar los cambios en la web.")

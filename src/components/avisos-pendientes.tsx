@@ -7,7 +7,7 @@ import { BotonPrimario } from '@/components/boton-primario';
 import { SelectorFechaCalendario } from '@/components/selector-fecha-calendario';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Ficha, FilaFicha } from '@/components/ui/panel';
+import { Ficha, FilaFicha, Pill, type PillColor } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { editarSolicitud, emailAsignarDia, mensajeError, pedidoWebConfirmar, pedidoWebMover, type EncargoPendiente, type PedidoWebPendiente, type SolicitudPendiente } from '@/lib/api';
@@ -30,8 +30,18 @@ const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' 
 const ETIQUETAS_CATEGORIA: Record<string, string> = {
   encargo: 'Encargo', duda: 'Duda', queja: 'Queja', proveedor: 'Proveedor', otro: 'Otro',
 };
-const ETIQUETAS_KIND: Record<string, string> = {
-  encargo: 'Encargo', tienda: 'Tienda', edicion: 'Edición especial',
+// Categoría real de una solicitud del formulario de contacto (Ariadna, 2026-08-27:
+// "información sobre edición"/"información general" no son pedidos pero podrían
+// pasar a serlo, y viceversa -- quiere poder reasignar la categoría desde la app).
+// Las 4 primeras vienen ya puestas por ContactoForm.astro; "reunion" no existe en
+// ningún formulario, solo se asigna aquí. Un color de Pill por categoría, para
+// distinguirlas de un vistazo en la lista de Avisos.
+export const CATEGORIAS_CONTACTO: Record<string, { texto: string; color: PillColor }> = {
+  encargo: { texto: 'Encargo', color: 'warning' },
+  b2b: { texto: 'Colaboración B2B', color: 'info' },
+  edicion: { texto: 'Info. edición especial', color: 'accent' },
+  informacion: { texto: 'Info. general', color: 'success' },
+  reunion: { texto: 'Reunión', color: 'danger' },
 };
 
 // Réplica de /panel/avisos/email/{id} -- ficha + "Asignar un día" que crea un pedido
@@ -131,6 +141,7 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
   const [nif, setNif] = useState(solicitud.nif ?? '');
   const [esEmpresa, setEsEmpresa] = useState(solicitud.es_empresa ?? false);
   const [precio, setPrecio] = useState(solicitud.total_cents != null ? (solicitud.total_cents / 100).toFixed(2) : '');
+  const [categoria, setCategoria] = useState(solicitud.tipo_contacto ?? 'encargo');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,6 +170,7 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
         ...(esEmpresa && nif.trim() ? { nif: nif.trim() } : {}),
         es_empresa: esEmpresa,
         ...(precioNum != null ? { precio_cents: Math.round(precioNum * 100) } : {}),
+        ...(categoria !== (solicitud.tipo_contacto ?? 'encargo') ? { tipo_contacto: categoria } : {}),
       });
       await queryClient.invalidateQueries({ queryKey: ['avisos'] });
       await queryClient.invalidateQueries({ queryKey: ['resumen'] });
@@ -182,7 +194,6 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
           </ThemedText>
 
           <Ficha style={styles.ficha}>
-            <FilaFicha etiqueta="Tipo" valor={ETIQUETAS_KIND[solicitud.kind] ?? solicitud.kind} />
             {solicitud.descripcion && (
               <FilaFicha etiqueta="Descripción" valor={decodificarEntidadesHtml(solicitud.descripcion)} multilinea />
             )}
@@ -200,6 +211,17 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
           <ThemedText type="small" themeColor="textSecondary" style={styles.nota}>
             Al confirmar la ficha se guarda directamente en la web y la fecha aparece en el calendario compartido.
           </ThemedText>
+
+          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>CATEGORÍA</ThemedText>
+          <View style={styles.chipsFila}>
+            {Object.entries(CATEGORIAS_CONTACTO).map(([valor, { texto, color }]) => (
+              <Pressable key={valor} onPress={() => setCategoria(valor)}>
+                <View style={{ opacity: categoria === valor ? 1 : 0.4 }}>
+                  <Pill color={color}>{texto}</Pill>
+                </View>
+              </Pressable>
+            ))}
+          </View>
 
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>DATOS DEL CLIENTE</ThemedText>
           <View style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
@@ -372,6 +394,7 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 26, lineHeight: 31, marginTop: Spacing.one },
   ficha: { marginTop: Spacing.two },
   seccion: { marginTop: Spacing.three, marginBottom: Spacing.two, letterSpacing: 0.3 },
+  chipsFila: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   nota: { lineHeight: 18 },
   formCard: { borderRadius: 16, padding: Spacing.three, gap: Spacing.two },
   filaSwitch: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },

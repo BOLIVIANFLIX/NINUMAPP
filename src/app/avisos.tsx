@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AsuntoEmail, SolicitudDetalle } from '@/components/avisos-pendientes';
+import { AsuntoEmail, CATEGORIAS_CONTACTO, SolicitudDetalle } from '@/components/avisos-pendientes';
 import { B2BCarritoConfirmar } from '@/components/b2b-carrito-confirmar';
 import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
+import { ListCard, ListRow, Pill, SectionLabel } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -202,16 +202,20 @@ export default function AvisosScreen() {
           )}
           {!!avisos.data?.solicitudes.length && (
             <ListCard>
-              {avisos.data.solicitudes.map((s, i) => (
-                <ListRow
-                  key={s.id}
-                  last={i === avisos.data!.solicitudes.length - 1}
-                  onPress={() => setSolicitudAbierta(s)}
-                  left={<NotifIcono icono={s.kind === 'encargo' ? '✉️' : '🛍️'} color={theme.info} bg={theme.infoSoft} />}
-                  title={s.cliente}
-                  subtitle={s.descripcion || (s.kind === 'tienda' ? 'Pedido de la tienda' : s.kind === 'edicion' ? 'Edición especial' : s.kind)}
-                />
-              ))}
+              {avisos.data.solicitudes.map((s, i) => {
+                const categoria = CATEGORIAS_CONTACTO[s.tipo_contacto ?? ''];
+                return (
+                  <ListRow
+                    key={s.id}
+                    last={i === avisos.data!.solicitudes.length - 1}
+                    onPress={() => setSolicitudAbierta(s)}
+                    left={<NotifIcono icono={s.kind === 'encargo' ? '✉️' : '🛍️'} color={theme.info} bg={theme.infoSoft} />}
+                    title={s.cliente}
+                    subtitle={s.descripcion || (s.kind === 'tienda' ? 'Pedido de la tienda' : s.kind === 'edicion' ? 'Edición especial' : s.kind)}
+                    right={categoria ? <Pill color={categoria.color}>{categoria.texto}</Pill> : undefined}
+                  />
+                );
+              })}
             </ListCard>
           )}
 

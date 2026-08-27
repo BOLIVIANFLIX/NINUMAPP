@@ -317,6 +317,7 @@ export interface SolicitudPendiente {
   descripcion: string | null;
   cliente: string;
   kind: string;
+  tipo_contacto: string | null;
   payment_status: string | null;
   recogida_fecha: string | null;
   guest_email: string | null;
@@ -343,6 +344,7 @@ export interface CambiosSolicitud {
   nif?: string;
   es_empresa?: boolean;
   precio_cents?: number;
+  tipo_contacto?: string;
 }
 
 /** Edita una solicitud (Correo sin resolver) directamente en la web -- mismos campos
