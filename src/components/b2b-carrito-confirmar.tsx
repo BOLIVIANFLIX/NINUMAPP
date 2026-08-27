@@ -163,8 +163,15 @@ export function B2BCarritoConfirmar({ pedido, onVolver, onResuelto }: { pedido: 
             Pedido B2B — {pedido.cliente}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            Pedido desde el carrito privado
+            {pedido.ya_pagado ? 'Comprado por la tienda online -- ya cobrado' : 'Pedido desde el carrito privado'}
           </ThemedText>
+          {pedido.ya_pagado && (
+            <View style={[styles.avisoPagado, { backgroundColor: theme.successSoft }]}>
+              <ThemedText type="small" style={{ color: theme.success, fontWeight: '700' }}>
+                ✅ Ya cobrado por Stripe -- al confirmar se marca cobrado directamente, no hace falta cobrarlo aparte.
+              </ThemedText>
+            </View>
+          )}
 
           {error && (
             <ThemedText type="small" themeColor="danger" style={styles.error}>
@@ -287,6 +294,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingBottom: BottomTabInset },
   scroll: { padding: Spacing.four, gap: Spacing.two },
   titulo: { fontSize: 26, lineHeight: 31, marginTop: Spacing.one },
+  avisoPagado: { borderRadius: 12, padding: Spacing.two, marginTop: Spacing.two },
   error: { lineHeight: 20 },
   filaLinea: { padding: Spacing.three, gap: Spacing.one },
   filaCampos: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },

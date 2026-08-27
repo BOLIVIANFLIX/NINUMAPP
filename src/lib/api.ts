@@ -821,6 +821,10 @@ export interface PedidoB2BCarrito {
   /** Fecha que el cliente pidió al hacer el pedido en la web -- solo una sugerencia
    * para prellenar el selector, se puede cambiar igual que cualquier otra fecha. */
   fecha_solicitada: string | null;
+  /** Compra real ya cobrada por Stripe (cuenta profesional que compró por la
+   * tienda normal) -- al confirmar, se marca cobrado directamente sin esperar
+   * un cobro aparte. false = pedido del carrito privado, sigue pendiente de cobro. */
+  ya_pagado: boolean;
   lineas: LineaB2BCarrito[];
   faltantes: FaltanteMateriaPrima[] | null;
   creado_en: string;
