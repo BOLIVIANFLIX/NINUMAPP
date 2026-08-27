@@ -1,4 +1,7 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_JWT_SECRET_INSEGURO = "SOLO-PARA-DESARROLLO-CAMBIAR-EN-.ENV"
 
 
 class Settings(BaseSettings):
@@ -67,9 +70,23 @@ class Settings(BaseSettings):
     # Access Token (JWT, corto) + Refresh Token (opaco, largo) -- ver app/auth.py.
     # jwt_secret debe fijarse de verdad en producción (.env) -- el valor por defecto
     # solo vale para desarrollo local, nunca desplegar con este.
-    jwt_secret: str = "SOLO-PARA-DESARROLLO-CAMBIAR-EN-.ENV"
+    jwt_secret: str = _JWT_SECRET_INSEGURO
     access_token_minutos: int = 20
     refresh_token_dias: int = 60
+
+    @model_validator(mode="after")
+    def _jwt_secret_no_inseguro_en_produccion(self) -> "Settings":
+        # database_url es la misma señal dev/prod que ya usa el resto del código
+        # (ver comentario arriba): sqlite = local, Postgres = VPS de producción.
+        # Si arranca contra Postgres sin JWT_SECRET fijado en .env, cualquiera
+        # podría forjar tokens válidos con este secreto público -- mejor no
+        # arrancar que arrancar inseguro.
+        if self.jwt_secret == _JWT_SECRET_INSEGURO and not self.database_url.startswith("sqlite"):
+            raise ValueError(
+                "JWT_SECRET no está configurado (usando el valor de desarrollo por defecto) "
+                "en un entorno que no es SQLite local. Fija JWT_SECRET en .env antes de desplegar."
+            )
+        return self
 
     # "*" en desarrollo (Expo corre en orígenes variables: localhost, la IP del
     # emulador, etc.). En producción se fija a la lista real separada por comas
