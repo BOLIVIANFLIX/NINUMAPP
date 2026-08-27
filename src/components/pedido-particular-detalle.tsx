@@ -60,6 +60,10 @@ export function PedidoParticularDetalle({ pedido, onVolver }: { pedido: Pedido; 
 
   function invalidarPedidos() {
     queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+    // Marcar pagado (o cambiar el precio desde "Guardar ficha") cambia las cifras
+    // de Inicio -- sin esto se quedaban con el valor viejo hasta refrescar esa
+    // pantalla a mano (Ariadna, 2026-08-27).
+    queryClient.invalidateQueries({ queryKey: ['resumen'] });
   }
 
   async function guardarFicha() {

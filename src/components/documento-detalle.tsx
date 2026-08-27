@@ -68,6 +68,9 @@ export function DocumentoDetalle({
     try {
       await marcarFacturado(numero);
       await queryClient.invalidateQueries({ queryKey: ['documento', numero] });
+      // Sin esto, "Pendiente de facturar" en Inicio se quedaba con la cifra vieja
+      // hasta refrescar esa pantalla a mano (Ariadna, 2026-08-27).
+      await queryClient.invalidateQueries({ queryKey: ['resumen'] });
     } catch (err) {
       Alert.alert('No se ha podido facturar', mensajeError(err));
     } finally {
@@ -80,6 +83,7 @@ export function DocumentoDetalle({
     try {
       await marcarCobrado(numero);
       await queryClient.invalidateQueries({ queryKey: ['documento', numero] });
+      await queryClient.invalidateQueries({ queryKey: ['resumen'] });
     } catch (err) {
       Alert.alert('No se ha podido marcar cobrado', mensajeError(err));
     } finally {

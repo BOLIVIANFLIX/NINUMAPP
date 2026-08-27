@@ -67,6 +67,10 @@ export function IngresosGastos({ onVolver }: { onVolver: () => void }) {
 
   function invalidar() {
     queryClient.invalidateQueries({ queryKey: ['ingresos', mesParam] });
+    // Sin esto, un gasto nuevo/marcado pagado no se veía reflejado en Inicio hasta
+    // tirar hacia abajo ahí a mano -- Ariadna, 2026-08-27: "hay que entrar en esa
+    // sección para verlo".
+    queryClient.invalidateQueries({ queryKey: ['resumen'] });
   }
 
   return (

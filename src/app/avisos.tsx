@@ -72,6 +72,9 @@ export default function AvisosScreen() {
         onResuelto={() => {
           setPedidoGF(null);
           queryClient.invalidateQueries({ queryKey: ['avisos', 'grand-folies'] });
+          // Confirmar genera un albarán real -- sin esto, Inicio se quedaba con las
+          // cifras viejas hasta refrescarlo a mano (Ariadna, 2026-08-27).
+          queryClient.invalidateQueries({ queryKey: ['resumen'] });
         }}
       />
     );
@@ -85,6 +88,7 @@ export default function AvisosScreen() {
         onResuelto={() => {
           setPedidoB2B(null);
           queryClient.invalidateQueries({ queryKey: ['avisos', 'b2b-carrito'] });
+          queryClient.invalidateQueries({ queryKey: ['resumen'] });
         }}
       />
     );

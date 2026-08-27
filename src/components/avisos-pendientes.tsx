@@ -161,6 +161,7 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
         ...(precioNum != null ? { precio_cents: Math.round(precioNum * 100) } : {}),
       });
       await queryClient.invalidateQueries({ queryKey: ['avisos'] });
+      await queryClient.invalidateQueries({ queryKey: ['resumen'] });
       onVolver();
     } catch (err) {
       setError(mensajeError(err));
