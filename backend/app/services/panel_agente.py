@@ -636,11 +636,3 @@ async def gmail_ids_resueltos(gmail_ids: list[str]) -> list[str]:
 
 async def email_asignar_dia(id_: int, fecha: str, descripcion: str) -> dict:
     return await _post("/api/ninumapp/avisos/email/asignar-dia", {"id": id_, "fecha": fecha, "descripcion": descripcion})
-
-
-async def pedido_web_confirmar(locator: str) -> dict:
-    return await _post("/api/ninumapp/avisos/pedido-web/confirmar", {"locator": locator})
-
-
-async def pedido_web_mover(locator: str, fecha: str) -> dict:
-    return await _post("/api/ninumapp/avisos/pedido-web/mover", {"locator": locator, "fecha": fecha})

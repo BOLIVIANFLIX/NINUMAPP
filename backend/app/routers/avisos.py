@@ -87,23 +87,9 @@ class AsignarDiaBody(BaseModel):
 async def email_asignar_dia(body: AsignarDiaBody, usuario: Usuario = Depends(usuario_actual)):
     return await panel_agente.email_asignar_dia(body.id, body.fecha, body.descripcion)
 
-
-class LocatorBody(BaseModel):
-    locator: str
-
-
-@router.post("/pedido-web/confirmar")
-@_manejar_error
-async def pedido_web_confirmar(body: LocatorBody, usuario: Usuario = Depends(usuario_actual)):
-    return await panel_agente.pedido_web_confirmar(body.locator)
-
-
-class MoverBody(BaseModel):
-    locator: str
-    fecha: str
-
-
-@router.post("/pedido-web/mover")
-@_manejar_error
-async def pedido_web_mover(body: MoverBody, usuario: Usuario = Depends(usuario_actual)):
-    return await panel_agente.pedido_web_mover(body.locator, body.fecha)
+# /pedido-web/confirmar y /pedido-web/mover se quitaron el 2026-08-27 -- auditoría de
+# bases de datos: solo escribían el "pedido web" en local (SQLite de ninuma-agente) y
+# el calendario, nunca en la web de verdad, y la pantalla que los llamaba
+# (AsuntoPedidoWeb) no estaba enganchada a ningún sitio real de la app. Confirmar/
+# mover la fecha de una solicitud hoy pasa por /solicitud/{id}/editar, que sí
+# escribe en la web.

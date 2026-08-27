@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BotonPrimario } from '@/components/boton-primario';
@@ -10,7 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha, Pill, type PillColor } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { editarSolicitud, emailAsignarDia, mensajeError, pedidoWebConfirmar, pedidoWebMover, type EncargoPendiente, type PedidoWebPendiente, type SolicitudPendiente } from '@/lib/api';
+import { editarSolicitud, emailAsignarDia, mensajeError, type EncargoPendiente, type SolicitudPendiente } from '@/lib/api';
 
 /** Decodifica entidades HTML sueltas ("&#39;", "&amp;"...) que llegan tal cual en la
  * descripción de algunos correos (p.ej. las notificaciones nativas de Formspree,
@@ -26,7 +26,6 @@ function decodificarEntidadesHtml(texto: string): string {
     .replace(/&#(\d+);/g, (_, cod) => String.fromCharCode(Number(cod)));
 }
 
-const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 const ETIQUETAS_CATEGORIA: Record<string, string> = {
   encargo: 'Encargo', duda: 'Duda', queja: 'Queja', proveedor: 'Proveedor', otro: 'Otro',
 };
@@ -298,94 +297,11 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
   );
 }
 
-// Réplica de /panel/avisos/pedido-web/{locator} -- confirmar la fecha solicitada o
-// moverlo a otro día, con sincronización de calendario (ninuma-agente lo hace).
-export function AsuntoPedidoWeb({ pedido, onVolver }: { pedido: PedidoWebPendiente; onVolver: () => void }) {
-  const theme = useTheme();
-  const queryClient = useQueryClient();
-  const [fechaMover, setFechaMover] = useState('');
-  const [accion, setAccion] = useState<'confirmar' | 'mover' | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function confirmar() {
-    setAccion('confirmar');
-    setError(null);
-    try {
-      await pedidoWebConfirmar(pedido.locator);
-      await queryClient.invalidateQueries({ queryKey: ['avisos-pendientes'] });
-      onVolver();
-    } catch (err) {
-      setError(mensajeError(err));
-    } finally {
-      setAccion(null);
-    }
-  }
-
-  async function mover() {
-    if (!fechaMover) {
-      setError('Falta la fecha.');
-      return;
-    }
-    setAccion('mover');
-    setError(null);
-    try {
-      await pedidoWebMover(pedido.locator, fechaMover);
-      await queryClient.invalidateQueries({ queryKey: ['avisos-pendientes'] });
-      onVolver();
-    } catch (err) {
-      setError(mensajeError(err));
-    } finally {
-      setAccion(null);
-    }
-  }
-
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <Pressable onPress={onVolver}>
-            <ThemedText type="link" themeColor="textSecondary">← Avisos</ThemedText>
-          </Pressable>
-          <ThemedText type="title" style={styles.titulo}>
-            Pedido de la web
-          </ThemedText>
-
-          <Ficha style={styles.ficha}>
-            <FilaFicha etiqueta="Cliente" valor={pedido.cliente || '—'} />
-            <FilaFicha etiqueta="Tipo" valor={pedido.kind || '—'} />
-            <FilaFicha etiqueta="Total" valor={eur.format((pedido.total_cents ?? 0) / 100)} />
-            <FilaFicha etiqueta="Fecha solicitada" valor={pedido.recogida_fecha ? new Date(pedido.recogida_fecha).toLocaleDateString('es-ES') : 'Sin fecha'} last />
-          </Ficha>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.nota}>
-            Esto es solo un recordatorio dentro de la app -- confirmar o mover la fecha aquí no cambia el pedido en la web ni avisa al cliente.
-          </ThemedText>
-
-          {error && <ThemedText type="small" themeColor="danger" style={styles.error}>{error}</ThemedText>}
-
-          <View style={styles.botonWrap}>
-            <BotonPrimario texto="✅ Confirmar esa fecha" onPress={confirmar} cargando={accion === 'confirmar'} disabled={accion === 'mover'} />
-          </View>
-
-          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>
-            O MOVERLO A OTRO DÍA
-          </ThemedText>
-          <View style={styles.filaMover}>
-            <TextInput
-              value={fechaMover}
-              onChangeText={setFechaMover}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { flex: 1, color: theme.text, borderColor: theme.separator }]}
-            />
-            <Pressable onPress={mover} disabled={accion === 'confirmar'} style={[styles.botonMover, { backgroundColor: theme.accent }]}>
-              {accion === 'mover' ? <ActivityIndicator color="#fff" size="small" /> : <ThemedText type="smallBold" style={{ color: '#fff' }}>Mover</ThemedText>}
-            </Pressable>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </ThemedView>
-  );
-}
+// AsuntoPedidoWeb (réplica de /panel/avisos/pedido-web/{locator}) se quitó el
+// 2026-08-27 -- auditoría de bases de datos: nunca estuvo enganchada a ninguna
+// pantalla real de la app, y solo escribía la fecha en local/calendario, nunca en
+// la web de verdad (su propia UI ya lo avisaba: "esto no cambia el pedido en la
+// web"). Confirmar/mover la fecha de una solicitud hoy pasa por SolicitudDetalle.
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

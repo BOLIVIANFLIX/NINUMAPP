@@ -1405,13 +1405,10 @@ export async function emailAsignarDia(id: number, fecha: string, descripcion: st
   await api.post('/api/avisos/email/asignar-dia', { id, fecha, descripcion });
 }
 
-export async function pedidoWebConfirmar(locator: string): Promise<void> {
-  await api.post('/api/avisos/pedido-web/confirmar', { locator });
-}
-
-export async function pedidoWebMover(locator: string, fecha: string): Promise<void> {
-  await api.post('/api/avisos/pedido-web/mover', { locator, fecha });
-}
+// pedidoWebConfirmar/pedidoWebMover se quitaron el 2026-08-27 -- auditoría de bases
+// de datos: solo escribían la fecha en local, nunca en la web de verdad, y
+// AsuntoPedidoWeb (única pantalla que los llamaba) no estaba enganchada a ningún
+// sitio real de la app. Confirmar/mover una solicitud hoy pasa por editarSolicitud.
 
 export function mensajeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
