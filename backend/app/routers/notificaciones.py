@@ -13,6 +13,7 @@ dejando los avisos de Telegram por push. Tres caminos:
   desmarcar los avisos que quiero que me lleguen"), en vez de decidirlo nosotros de
   antemano uno por uno."""
 
+import hmac
 from datetime import datetime
 
 import httpx
@@ -77,7 +78,11 @@ class EnviarBody(BaseModel):
 
 
 def _verificar_secreto(x_notificaciones_secret: str | None) -> None:
-    if not settings.ninumapp_api_secret or x_notificaciones_secret != settings.ninumapp_api_secret:
+    if not settings.ninumapp_api_secret or not x_notificaciones_secret:
+        raise HTTPException(status_code=401, detail="Secreto inválido.")
+    # compare_digest en vez de != -- comparación en tiempo constante, evita filtrar
+    # por timing cuánto del secreto coincide.
+    if not hmac.compare_digest(x_notificaciones_secret, settings.ninumapp_api_secret):
         raise HTTPException(status_code=401, detail="Secreto inválido.")
 
 
