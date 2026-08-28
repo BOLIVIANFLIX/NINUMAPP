@@ -33,6 +33,7 @@ export function ListRow({
   right,
   last,
   onPress,
+  multilinea,
 }: {
   left?: React.ReactNode;
   title: string;
@@ -40,6 +41,11 @@ export function ListRow({
   right?: React.ReactNode;
   last?: boolean;
   onPress?: () => void;
+  /** Igual que FilaFicha.multilinea -- para títulos largos (p.ej. el resumen de un
+   * evento del calendario con artículos + teléfono) que no deben cortarse a una sola
+   * línea. Ariadna, 2026-08-28: "el texto que se ve de cada mensaje... que sea más
+   * amplio para poder ver toda la información". */
+  multilinea?: boolean;
 }) {
   const theme = useTheme();
   const Wrapper = onPress ? Pressable : View;
@@ -47,7 +53,7 @@ export function ListRow({
     <Wrapper onPress={onPress} style={[styles.listRow, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.separator }]}>
       {left}
       <View style={styles.listRowMain}>
-        <ThemedText type="smallBold" numberOfLines={1}>
+        <ThemedText type="smallBold" numberOfLines={multilinea ? undefined : 1}>
           {title}
         </ThemedText>
         {subtitle ? (

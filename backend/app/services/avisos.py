@@ -129,3 +129,16 @@ async def editar_solicitud(
 
     resp = await wbd.peticion("POST", "/api/ninumapp-agendar", json=cuerpo)
     return resp is not None and resp.status_code == 200
+
+
+async def descartar_solicitud(order_id: str, tipo_contacto: str | None = None) -> bool:
+    """Da por vista una solicitud de tipo "informacion" (una simple consulta, no un
+    pedido) sin fecha ni sincronización de calendario -- Ariadna, 2026-08-28: "quiero
+    indicarle al sistema que no la agende... con notificar en la app es suficiente,
+    luego no ocupa día ni nada más en las bases de datos". Ver
+    WBD/src/lib/telegram-pedidos.ts::descartarSolicitud."""
+    cuerpo: dict = {"orderId": order_id, "descartar": True}
+    if tipo_contacto is not None:
+        cuerpo["tipoContacto"] = tipo_contacto
+    resp = await wbd.peticion("POST", "/api/ninumapp-agendar", json=cuerpo)
+    return resp is not None and resp.status_code == 200

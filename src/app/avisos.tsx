@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AsuntoEmail, CATEGORIAS_CONTACTO, SolicitudDetalle } from '@/components/avisos-pendientes';
+import { AsuntoEmail, CATEGORIAS_CONTACTO, mensajeReal, SolicitudDetalle, tituloConCategoria } from '@/components/avisos-pendientes';
 import { B2BCarritoConfirmar } from '@/components/b2b-carrito-confirmar';
 import { GrandFoliesConfirmar } from '@/components/grand-folies-confirmar';
 import { ThemedText } from '@/components/themed-text';
@@ -68,8 +68,12 @@ export default function AvisosScreen() {
           setPedidoGF(null);
           queryClient.invalidateQueries({ queryKey: ['avisos', 'grand-folies'] });
           // Confirmar genera un albarán real -- sin esto, Inicio se quedaba con las
-          // cifras viejas hasta refrescarlo a mano (Ariadna, 2026-08-27).
+          // cifras viejas hasta refrescarlo a mano (Ariadna, 2026-08-27). Faltaba
+          // también 'clientes-profesionales' -- mismo bug, pero en Pedidos > Profesionales
+          // en vez de Inicio: seguía mostrando "Sin albaranes abiertos" del cliente hasta
+          // refrescar a mano, aunque el albarán ya existiera de verdad (Ariadna, 2026-08-28).
           queryClient.invalidateQueries({ queryKey: ['resumen'] });
+          queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
         }}
       />
     );
@@ -84,6 +88,10 @@ export default function AvisosScreen() {
           setPedidoB2B(null);
           queryClient.invalidateQueries({ queryKey: ['avisos', 'b2b-carrito'] });
           queryClient.invalidateQueries({ queryKey: ['resumen'] });
+          // Mismo bug que GrandFoliesConfirmar arriba: sin esto, Pedidos > Profesionales
+          // seguía mostrando "Sin albaranes abiertos" del cliente aunque el albarán ya
+          // existiera (Ariadna, 2026-08-28).
+          queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
         }}
       />
     );
@@ -205,8 +213,9 @@ export default function AvisosScreen() {
                     last={i === avisos.data!.solicitudes.length - 1}
                     onPress={() => setSolicitudAbierta(s)}
                     left={<NotifIcono icono={s.kind === 'encargo' ? '✉️' : '🛍️'} color={theme.info} bg={theme.infoSoft} />}
-                    title={s.cliente}
-                    subtitle={s.descripcion || (s.kind === 'tienda' ? 'Pedido de la tienda' : s.kind === 'edicion' ? 'Edición especial' : s.kind)}
+                    title={tituloConCategoria(s)}
+                    subtitle={mensajeReal(s) || (s.kind === 'tienda' ? 'Pedido de la tienda' : s.kind === 'edicion' ? 'Edición especial' : s.kind)}
+                    multilinea
                     right={categoria ? <Pill color={categoria.color}>{categoria.texto}</Pill> : undefined}
                   />
                 );

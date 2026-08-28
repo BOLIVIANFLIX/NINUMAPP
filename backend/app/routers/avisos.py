@@ -46,6 +46,18 @@ async def solicitud_editar(solicitud_id: str, body: EditarSolicitudBody, usuario
     return {"ok": True}
 
 
+class DescartarSolicitudBody(BaseModel):
+    tipo_contacto: str | None = None
+
+
+@router.post("/solicitud/{solicitud_id}/descartar")
+async def solicitud_descartar(solicitud_id: str, body: DescartarSolicitudBody, usuario: Usuario = Depends(usuario_actual)):
+    ok = await avisos_service.descartar_solicitud(solicitud_id, tipo_contacto=body.tipo_contacto)
+    if not ok:
+        raise HTTPException(status_code=502, detail="No se ha podido guardar los cambios en la web.")
+    return {"ok": True}
+
+
 @router.get("/pendientes")
 async def pendientes(usuario: Usuario = Depends(usuario_actual)):
     """Correo sin resolver + pedidos de la web pendientes de revisar -- mismas dos

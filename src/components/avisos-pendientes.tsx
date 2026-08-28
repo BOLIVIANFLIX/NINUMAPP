@@ -10,7 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha, Pill, type PillColor } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { editarSolicitud, emailAsignarDia, mensajeError, type EncargoPendiente, type SolicitudPendiente } from '@/lib/api';
+import { descartarSolicitud, editarSolicitud, emailAsignarDia, mensajeError, type EncargoPendiente, type SolicitudPendiente } from '@/lib/api';
 
 /** Decodifica entidades HTML sueltas ("&#39;", "&amp;"...) que llegan tal cual en la
  * descripción de algunos correos (p.ej. las notificaciones nativas de Formspree,
@@ -24,6 +24,40 @@ function decodificarEntidadesHtml(texto: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&#(\d+);/g, (_, cod) => String.fromCharCode(Number(cod)));
+}
+
+// Mismo texto que TIPO_LABEL en WBD/src/pages/api/contacto-confirmacion.ts -- ese
+// endpoint antepone "{TIPO_LABEL} desde el formulario de contacto." a la
+// descripción real de todo contacto que llega por ContactoForm.astro. Ariadna,
+// 2026-08-28, viendo la lista de Avisos real: "el texto que se puede ver en la app
+// no es nada útil" -- "PABLO / Consulta general desde el formulario de contacto.
+// q…" no dice de qué va el mensaje, se corta justo antes de lo importante. Quiere
+// el encabezado delante ("Consulta general — Pablo") y el hueco que libera para el
+// mensaje real ("quiero saber cómo hacer un pedido").
+const TIPO_LABEL_LARGO: Record<string, string> = {
+  encargo: 'Encargo',
+  b2b: 'Colaboración B2B',
+  edicion: 'Consulta sobre edición especial',
+  informacion: 'Consulta general',
+};
+
+/** Quita el prefijo "{TIPO_LABEL} desde el formulario de contacto." de la
+ * descripción (ver TIPO_LABEL_LARGO) para dejar solo el mensaje real del
+ * contacto -- si no encaja (otro origen de la solicitud, p.ej. el bot de
+ * Telegram) devuelve la descripción tal cual. */
+export function mensajeReal(solicitud: Pick<SolicitudPendiente, 'descripcion' | 'tipo_contacto'>): string | null {
+  if (!solicitud.descripcion) return null;
+  const etiqueta = solicitud.tipo_contacto ? TIPO_LABEL_LARGO[solicitud.tipo_contacto] : undefined;
+  const prefijo = etiqueta ? `${etiqueta} desde el formulario de contacto.` : null;
+  const texto = prefijo && solicitud.descripcion.startsWith(prefijo) ? solicitud.descripcion.slice(prefijo.length).trim() : solicitud.descripcion;
+  return decodificarEntidadesHtml(texto) || null;
+}
+
+/** "Consulta general — Pablo" en vez de solo "Pablo" -- para saber de qué va cada
+ * fila de un vistazo, sin tener que abrirla (ver mensajeReal arriba). */
+export function tituloConCategoria(solicitud: Pick<SolicitudPendiente, 'cliente' | 'tipo_contacto'>): string {
+  const etiqueta = solicitud.tipo_contacto ? TIPO_LABEL_LARGO[solicitud.tipo_contacto] : undefined;
+  return etiqueta ? `${etiqueta} — ${solicitud.cliente}` : solicitud.cliente;
 }
 
 const ETIQUETAS_CATEGORIA: Record<string, string> = {
@@ -42,6 +76,14 @@ export const CATEGORIAS_CONTACTO: Record<string, { texto: string; color: PillCol
   informacion: { texto: 'Info. general', color: 'success' },
   reunion: { texto: 'Reunión', color: 'danger' },
 };
+
+// Subconjunto de arriba que se puede elegir a mano en los chips de SolicitudDetalle
+// -- "reunion" se quita de aquí porque tiene su propio interruptor junto al precio
+// (Ariadna, 2026-08-28: "dame una opción para marcarlo como tal al lado del precio...
+// el típico botón que se desplaza estilo on/off"), no un chip más entre cinco. Sigue
+// en CATEGORIAS_CONTACTO de arriba para que la insignia de la lista de Avisos la
+// reconozca igual.
+const CATEGORIAS_SELECCIONABLES = Object.entries(CATEGORIAS_CONTACTO).filter(([valor]) => valor !== 'reunion');
 
 // Réplica de /panel/avisos/email/{id} -- ficha + "Asignar un día" que crea un pedido
 // real en la web (ninuma_web_client.crear_pedido) vía el bridge de ninuma-agente.
@@ -143,6 +185,27 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
   const [categoria, setCategoria] = useState(solicitud.tipo_contacto ?? 'encargo');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const esReunion = categoria === 'reunion';
+  const esInformacion = categoria === 'informacion';
+
+  // Una consulta (categoria="informacion") no es un pedido -- Ariadna, 2026-08-28:
+  // "quiero indicarle al sistema que no la agende, que la trate solo como una
+  // consulta... con notificar en la app es suficiente, luego no ocupa día ni nada
+  // más en las bases de datos". Nada de fecha, nada de calendario: solo se marca
+  // como vista.
+  async function darPorVista() {
+    setGuardando(true);
+    setError(null);
+    try {
+      await descartarSolicitud(solicitud.id, 'informacion');
+      await queryClient.invalidateQueries({ queryKey: ['avisos'] });
+      onVolver();
+    } catch (err) {
+      setError(mensajeError(err));
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   async function confirmarFicha() {
     if (!fecha) {
@@ -153,9 +216,10 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
     // pagado" -- si el pedido ya está cobrado (Stripe), lo cobrado es lo cobrado;
     // tocar total_cents aquí no corrige ningún cargo real, solo desincroniza el
     // registro frente a lo que de verdad se pagó. Editable solo mientras aún no se
-    // ha cobrado (encargo pendiente de pago).
-    const precioNum = !yaPagado && precio.trim() ? Number(precio.replace(',', '.')) : null;
-    if (!yaPagado && precio.trim() && Number.isNaN(precioNum)) {
+    // ha cobrado (encargo pendiente de pago). Una reunión no tiene precio -- Ariadna,
+    // 2026-08-28: "no tiene nada que ver con precios ni contabilidad".
+    const precioNum = !yaPagado && !esReunion && precio.trim() ? Number(precio.replace(',', '.')) : null;
+    if (!yaPagado && !esReunion && precio.trim() && Number.isNaN(precioNum)) {
       setError('El precio no es un número válido.');
       return;
     }
@@ -208,12 +272,14 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
             <FilaFicha etiqueta="Recibido" valor={new Date(solicitud.creado_en).toLocaleDateString('es-ES')} last />
           </Ficha>
           <ThemedText type="small" themeColor="textSecondary" style={styles.nota}>
-            Al confirmar la ficha se guarda directamente en la web y la fecha aparece en el calendario compartido.
+            {esInformacion
+              ? 'Se marcará como vista, sin ocupar ningún día en el calendario ni en la contabilidad.'
+              : 'Al confirmar la ficha se guarda directamente en la web y la fecha aparece en el calendario compartido.'}
           </ThemedText>
 
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>CATEGORÍA</ThemedText>
           <View style={styles.chipsFila}>
-            {Object.entries(CATEGORIAS_CONTACTO).map(([valor, { texto, color }]) => (
+            {CATEGORIAS_SELECCIONABLES.map(([valor, { texto, color }]) => (
               <Pressable key={valor} onPress={() => setCategoria(valor)}>
                 <View style={{ opacity: categoria === valor ? 1 : 0.4 }}>
                   <Pill color={color}>{texto}</Pill>
@@ -222,75 +288,95 @@ export function SolicitudDetalle({ solicitud, onVolver }: { solicitud: Solicitud
             ))}
           </View>
 
-          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>DATOS DEL CLIENTE</ThemedText>
-          <View style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
-            <TextInput
-              value={nombre}
-              onChangeText={setNombre}
-              placeholder={esEmpresa ? 'Nombre de la empresa' : 'Nombre del cliente'}
-              placeholderTextColor={theme.textSecondary}
-              style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
-            />
-            <TextInput
-              value={telefono}
-              onChangeText={setTelefono}
-              placeholder="Teléfono"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="phone-pad"
-              style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
-            />
-            <View style={styles.filaSwitch}>
-              <ThemedText type="small">Es empresa</ThemedText>
-              <Switch value={esEmpresa} onValueChange={setEsEmpresa} />
-            </View>
-            {esEmpresa && (
-              <TextInput
-                value={nif}
-                onChangeText={setNif}
-                placeholder="NIF/CIF"
-                placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
-              />
-            )}
-            {yaPagado ? (
-              precio && (
-                <ThemedText type="small" themeColor="textSecondary">
-                  Precio cobrado: {precio} € (ya pagado, no editable)
+          {esInformacion ? (
+            <>
+              {error && <ThemedText type="small" themeColor="danger" style={styles.error}>{error}</ThemedText>}
+              <View style={styles.botonWrap}>
+                <BotonPrimario texto="👁️ Dar por vista" onPress={darPorVista} cargando={guardando} />
+              </View>
+            </>
+          ) : (
+            <>
+              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>DATOS DEL CLIENTE</ThemedText>
+              <View style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
+                <TextInput
+                  value={nombre}
+                  onChangeText={setNombre}
+                  placeholder={esEmpresa ? 'Nombre de la empresa' : 'Nombre del cliente'}
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+                />
+                <TextInput
+                  value={telefono}
+                  onChangeText={setTelefono}
+                  placeholder="Teléfono"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                  style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+                />
+                <View style={styles.filaSwitch}>
+                  <ThemedText type="small">Es empresa</ThemedText>
+                  <Switch value={esEmpresa} onValueChange={setEsEmpresa} />
+                </View>
+                {esEmpresa && (
+                  <TextInput
+                    value={nif}
+                    onChangeText={setNif}
+                    placeholder="NIF/CIF"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+                  />
+                )}
+                {/* Ariadna, 2026-08-28: "colaboración para tu negocio es una reunión...
+                    dame una opción para marcarlo como tal al lado del precio... el
+                    típico botón que se desplaza estilo on/off". Una reunión no tiene
+                    precio ni contabilidad, así que al activarlo se oculta el campo. */}
+                <View style={styles.filaSwitch}>
+                  <ThemedText type="small">Es una reunión (no es un pedido)</ThemedText>
+                  <Switch value={esReunion} onValueChange={(v) => setCategoria(v ? 'reunion' : 'encargo')} />
+                </View>
+                {!esReunion &&
+                  (yaPagado ? (
+                    precio && (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Precio cobrado: {precio} € (ya pagado, no editable)
+                      </ThemedText>
+                    )
+                  ) : (
+                    <TextInput
+                      value={precio}
+                      onChangeText={setPrecio}
+                      placeholder="Precio (€)"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="decimal-pad"
+                      style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+                    />
+                  ))}
+              </View>
+
+              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>FECHA DE ENTREGA</ThemedText>
+              <Pressable onPress={() => setMostrarCalendario((v) => !v)} style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
+                <ThemedText style={!fecha ? { color: theme.textSecondary } : undefined}>
+                  {fecha ? new Date(`${fecha}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Toca para elegir un día en el calendario'}
                 </ThemedText>
-              )
-            ) : (
-              <TextInput
-                value={precio}
-                onChangeText={setPrecio}
-                placeholder="Precio (€)"
-                placeholderTextColor={theme.textSecondary}
-                keyboardType="decimal-pad"
-                style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
-              />
-            )}
-          </View>
+              </Pressable>
+              {mostrarCalendario && (
+                <SelectorFechaCalendario
+                  fechaSeleccionada={fecha || null}
+                  onSeleccionar={(iso) => {
+                    setFecha(iso);
+                    setMostrarCalendario(false);
+                  }}
+                />
+              )}
 
-          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>FECHA DE ENTREGA</ThemedText>
-          <Pressable onPress={() => setMostrarCalendario((v) => !v)} style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText style={!fecha ? { color: theme.textSecondary } : undefined}>
-              {fecha ? new Date(`${fecha}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Toca para elegir un día en el calendario'}
-            </ThemedText>
-          </Pressable>
-          {mostrarCalendario && (
-            <SelectorFechaCalendario
-              fechaSeleccionada={fecha || null}
-              onSeleccionar={(iso) => {
-                setFecha(iso);
-                setMostrarCalendario(false);
-              }}
-            />
+              {error && <ThemedText type="small" themeColor="danger" style={styles.error}>{error}</ThemedText>}
+
+              <View style={styles.botonWrap}>
+                <BotonPrimario texto="✅ Confirmar ficha" onPress={confirmarFicha} cargando={guardando} />
+              </View>
+            </>
           )}
-
-          {error && <ThemedText type="small" themeColor="danger" style={styles.error}>{error}</ThemedText>}
-
-          <View style={styles.botonWrap}>
-            <BotonPrimario texto="✅ Confirmar ficha" onPress={confirmarFicha} cargando={guardando} />
-          </View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>

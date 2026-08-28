@@ -326,6 +326,12 @@ export async function editarSolicitud(id: string, cambios: CambiosSolicitud): Pr
   await mutar(`/api/avisos/solicitud/${id}/editar`, 'post', cambios);
 }
 
+/** Da por vista una solicitud de tipo "informacion" (consulta, no pedido) sin fecha
+ * ni evento de calendario -- ver SolicitudDetalle en avisos-pendientes.tsx. */
+export async function descartarSolicitud(id: string, tipoContacto?: string): Promise<void> {
+  await mutar(`/api/avisos/solicitud/${id}/descartar`, 'post', tipoContacto ? { tipo_contacto: tipoContacto } : {});
+}
+
 /** FormData con la foto -- se sube tal cual, sin fijar Content-Type a mano (axios/RN
  * ponen el boundary multipart correcto solas; fijarlo aquí lo rompería). */
 function formDataDeFoto(uri: string): FormData {

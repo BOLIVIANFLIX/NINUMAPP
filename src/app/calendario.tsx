@@ -23,6 +23,19 @@ const fechaCorta = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'sh
 // Ariadna), en vez de un simple punto + lista al tocar.
 const MAX_ETIQUETAS_POR_DIA = 2;
 
+// Mismo semáforo que WBD/src/lib/google-calendar.ts (particulares/tienda/edición) y
+// ninuma-agente/calendario_client.py (B2B, unificado al mismo esquema el
+// 2026-08-28) -- Ariadna, 2026-08-28: quiere la leyenda de qué significa cada color
+// siempre visible, azul incluido (reuniones/citas que no son un pedido, nunca lo
+// asigna el código: ver la cabecera de calendario_client.py).
+const LEYENDA_COLORES: { colorId: string; etiqueta: string }[] = [
+  { colorId: '11', etiqueta: 'Solicitud sin revisar' },
+  { colorId: '5', etiqueta: 'Fecha confirmada, sin cobrar' },
+  { colorId: '10', etiqueta: 'Pagado' },
+  { colorId: '8', etiqueta: 'Entregado' },
+  { colorId: '9', etiqueta: 'Reunión / otra cita' },
+];
+
 export default function CalendarioScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
@@ -175,12 +188,24 @@ export default function CalendarioScreen() {
                       last={i === eventosDelDiaSeleccionado.length - 1}
                       title={ev.titulo}
                       subtitle={ev.todo_el_dia ? 'Todo el día' : fechaCorta.format(new Date(ev.inicio))}
+                      multilinea
                     />
                   ))}
                 </ListCard>
               )}
             </>
           )}
+
+          <View style={styles.leyenda}>
+            {LEYENDA_COLORES.map(({ colorId, etiqueta }) => (
+              <View key={colorId} style={styles.leyendaItem}>
+                <View style={[styles.leyendaPunto, { backgroundColor: colorEvento(colorId, theme.info) }]} />
+                <ThemedText type="small" themeColor="textSecondary">
+                  {etiqueta}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
 
           {URL_CALENDARIO && (
             <View style={styles.tarjetaExterna}>
@@ -212,4 +237,7 @@ const styles = StyleSheet.create({
   etiquetaTexto: { fontSize: 12, lineHeight: 15, color: '#fff', fontWeight: '600' },
   masEventos: { fontSize: 11, lineHeight: 14, textAlign: 'center' },
   tarjetaExterna: { marginTop: Spacing.four },
+  leyenda: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.three, marginTop: Spacing.four, paddingHorizontal: Spacing.two },
+  leyendaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  leyendaPunto: { width: 10, height: 10, borderRadius: 5 },
 });
