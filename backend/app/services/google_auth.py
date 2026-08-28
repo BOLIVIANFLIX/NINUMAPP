@@ -4,12 +4,22 @@ services/gmail.py y services/calendario_google.py. El refresh_token (guardado en
 GMAIL_REFRESH_TOKEN por motivos históricos, aunque ya cubre más que Gmail) nunca
 puede escribir ni borrar nada en ninguno de los dos servicios."""
 
+import time
+
 import httpx
 
 from app.config import settings
 
 SCOPES = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly"
 REDIRECT_URI = "http://localhost:8000/api/gmail/callback"
+
+# access_token() la llaman gmail.py y calendario_google.py en cada petición -- sin
+# caché pedía un access_token nuevo a Google en cada una (revisión de calidad de
+# código, 2026-08-27), aunque el que ya se tiene siga siendo válido (normalmente
+# 3600s). Cache en memoria de un solo proceso: una única cuenta de Google para todo
+# NINUMAPP, no hace falta nada más elaborado. 60s de margen antes de expirar_en por
+# si hay desfase de reloj o la petición tarda en llegar.
+_token_cache: dict[str, str | float] = {}
 
 
 def construir_url_autorizacion() -> str:
@@ -46,6 +56,11 @@ async def intercambiar_codigo_por_refresh_token(codigo: str) -> str:
 async def access_token() -> str | None:
     if not (settings.google_client_id and settings.google_client_secret and settings.gmail_refresh_token):
         return None
+
+    ahora = time.monotonic()
+    if _token_cache.get("token") and ahora < _token_cache.get("expira_en", 0):
+        return _token_cache["token"]
+
     try:
         async with httpx.AsyncClient(timeout=10) as cliente:
             resp = await cliente.post(
@@ -58,6 +73,10 @@ async def access_token() -> str | None:
                 },
             )
             resp.raise_for_status()
-            return resp.json()["access_token"]
+            datos = resp.json()
     except httpx.HTTPError:
         return None
+
+    _token_cache["token"] = datos["access_token"]
+    _token_cache["expira_en"] = ahora + datos.get("expires_in", 3600) - 60
+    return _token_cache["token"]

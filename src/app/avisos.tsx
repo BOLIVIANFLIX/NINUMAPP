@@ -1,6 +1,5 @@
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ListCard, ListRow, Pill, SectionLabel } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useResetAlSalir } from '@/hooks/use-reset-al-salir';
 import { useTheme } from '@/hooks/use-theme';
 import {
   obtenerAvisos,
@@ -35,7 +35,6 @@ function hoyISO(): string {
 export default function AvisosScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const navigation = useNavigation();
   const [pedidoGF, setPedidoGF] = useState<PedidoGrandFolies | null>(null);
   const [pedidoB2B, setPedidoB2B] = useState<PedidoB2BCarrito | null>(null);
   const [asuntoEmail, setAsuntoEmail] = useState<EncargoPendiente | null>(null);
@@ -48,11 +47,7 @@ export default function AvisosScreen() {
     setSolicitudAbierta(null);
   }
 
-  useFocusEffect(useCallback(() => volverAlPrincipal, []));
-
-  useEffect(() => {
-    return navigation.addListener('tabPress' as never, volverAlPrincipal);
-  }, [navigation]);
+  useResetAlSalir(volverAlPrincipal);
 
   const avisos = useQuery({ queryKey: ['avisos'], queryFn: obtenerAvisos, refetchInterval: 30_000 });
   const grandFolies = useQuery({ queryKey: ['avisos', 'grand-folies'], queryFn: obtenerGrandFoliesPendientes });
@@ -298,5 +293,4 @@ const styles = StyleSheet.create({
   avisoLinea: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
   tarjetaDestacada: { borderWidth: 1.5 },
   filaMargen: { paddingHorizontal: 4 },
-  enlaceUsuarios: { marginTop: Spacing.four },
 });

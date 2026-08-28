@@ -1,6 +1,4 @@
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
-import { File, Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha, KpiCard, KpiRow, ListCard, ListRow, SectionLabel, Segmented } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { tokenStore } from '@/lib/token-store';
+import { descargarYCompartir } from '@/lib/descargas';
 import {
   guardarConfigCostes,
   guardarTiempoReceta,
@@ -327,13 +325,7 @@ function TabImpuestos() {
     if (!data) return;
     setDescargando(true);
     try {
-      const token = tokenStore.getAccessToken();
-      const destino = new File(Paths.cache, `tickets-${data.anio}-T${data.trimestre}.zip`);
-      const archivo = await File.downloadFileAsync(urlTicketsPeriodo(data.desde, data.hasta), destino, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        idempotent: true,
-      });
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(archivo.uri);
+      await descargarYCompartir(urlTicketsPeriodo(data.desde, data.hasta), `tickets-${data.anio}-T${data.trimestre}.zip`);
     } catch {
       Alert.alert('No se ha podido descargar', 'Inténtalo de nuevo en unos segundos.');
     } finally {

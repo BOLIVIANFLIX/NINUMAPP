@@ -1,28 +1,15 @@
 """Análisis financiero -- réplica de /panel/analisis (Resumen/Productos/Recetas/Precios),
 mismas funciones de ninuma-agente vía panel_agente, nunca reimplementadas aquí."""
 
-import functools
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.errores import manejar_error as _manejar_error
 from app.services import panel_agente
-from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/analisis", tags=["analisis"])
-
-
-def _manejar_error(f):
-    @functools.wraps(f)
-    async def envoltura(*args, **kwargs):
-        try:
-            return await f(*args, **kwargs)
-        except PanelAgenteError as e:
-            raise HTTPException(status_code=502, detail=str(e))
-
-    return envoltura
 
 
 @router.get("/resumen")

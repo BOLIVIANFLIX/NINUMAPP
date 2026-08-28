@@ -8,6 +8,7 @@ cualquier automatización cuyo nombre sugiera una alarma de frío -- "alarma",
 "congelador", "nevera", "puerta", "temperatura". Si hace falta afinar la lista más
 adelante, se ajustan las palabras clave aquí, sin tocar nada más."""
 
+import asyncio
 from datetime import datetime
 from typing import TypedDict
 
@@ -110,24 +111,29 @@ async def sensores_obrador() -> tuple[list[SensorHA], bool]:
     if not settings.ha_url or not settings.ha_token:
         return [], False
 
+    # En paralelo, no una por una -- 6 sensores en secuencia con timeout=5 cada uno
+    # podían tardar hasta 30s si HA iba lento (revisión de calidad de código,
+    # 2026-08-27). _estado ya traga sus propios errores (devuelve None), así que
+    # gather no lanza por un sensor caído.
     async with httpx.AsyncClient(timeout=5) as cliente:
-        sensores: list[SensorHA] = []
-        conectado = False
-        for entity_id, etiqueta in _SENSORES_OBRADOR:
-            estado = await _estado(cliente, entity_id)
-            if estado is not None:
-                conectado = True
-            valor = estado.get("state") if estado else None
-            if valor in ("unknown", "unavailable"):
-                valor = None
-            sensores.append(
-                SensorHA(
-                    entity_id=entity_id,
-                    etiqueta=etiqueta,
-                    valor=valor,
-                    unidad=estado.get("attributes", {}).get("unit_of_measurement") if estado else None,
-                )
+        estados = await asyncio.gather(*(_estado(cliente, entity_id) for entity_id, _ in _SENSORES_OBRADOR))
+
+    sensores: list[SensorHA] = []
+    conectado = False
+    for (entity_id, etiqueta), estado in zip(_SENSORES_OBRADOR, estados):
+        if estado is not None:
+            conectado = True
+        valor = estado.get("state") if estado else None
+        if valor in ("unknown", "unavailable"):
+            valor = None
+        sensores.append(
+            SensorHA(
+                entity_id=entity_id,
+                etiqueta=etiqueta,
+                valor=valor,
+                unidad=estado.get("attributes", {}).get("unit_of_measurement") if estado else None,
             )
+        )
     return sensores, conectado
 
 

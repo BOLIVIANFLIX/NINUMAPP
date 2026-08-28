@@ -318,6 +318,4 @@ const styles = StyleSheet.create({
   inputMultilinea: { minHeight: 70, textAlignVertical: 'top' },
   error: { marginTop: Spacing.one },
   botonWrap: { marginTop: Spacing.two },
-  filaMover: { flexDirection: 'row', gap: Spacing.two },
-  botonMover: { borderRadius: 10, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
 });

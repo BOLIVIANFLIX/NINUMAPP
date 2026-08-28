@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.estado_conexion import con_estado
 from app.services import calendario_google
 
 router = APIRouter(prefix="/api/calendario", tags=["calendario"])
@@ -25,8 +26,4 @@ async def eventos(desde: str, hasta: str, usuario: Usuario = Depends(usuario_act
     # cubrir ese último día entero, no solo hasta su medianoche de entrada.
     hasta_dt = datetime.combine(date.fromisoformat(hasta) + timedelta(days=1), datetime.min.time(), tzinfo=_ZONA_NINUMA)
     lista, conectado = await calendario_google.eventos(desde_dt, hasta_dt)
-    return {
-        "eventos": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "Calendario todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "Calendario todavía no está conectado en NINUMAPP.", eventos=lista)

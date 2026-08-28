@@ -22,6 +22,7 @@ Flujo de autorización (una sola vez, a mano):
    desde la app) -- el refresh_token resultante se guarda en `.env` y ya no hace
    falta repetir nada de esto salvo que se revoque el acceso."""
 
+import asyncio
 import html
 from typing import TypedDict
 
@@ -37,6 +38,24 @@ class CorreoPendiente(TypedDict):
     asunto: str
     resumen: str
     fecha: str
+
+
+async def _detalle_correo(cliente: httpx.AsyncClient, cabeceras: dict, id_: str) -> CorreoPendiente:
+    detalle = await cliente.get(
+        f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{id_}",
+        headers=cabeceras,
+        params={"format": "metadata", "metadataHeaders": ["From", "Subject", "Date"]},
+    )
+    detalle.raise_for_status()
+    datos = detalle.json()
+    cabeceras_msg = {h["name"]: h["value"] for h in datos.get("payload", {}).get("headers", [])}
+    return CorreoPendiente(
+        id=id_,
+        de=cabeceras_msg.get("From", "?"),
+        asunto=cabeceras_msg.get("Subject", "(sin asunto)"),
+        resumen=html.unescape(datos.get("snippet", "")),
+        fecha=cabeceras_msg.get("Date", ""),
+    )
 
 
 async def correos_pendientes(limite: int = 20) -> tuple[list[CorreoPendiente], bool]:
@@ -65,25 +84,11 @@ async def correos_pendientes(limite: int = 20) -> tuple[list[CorreoPendiente], b
             resueltos = set(await panel_agente.gmail_ids_resueltos(ids))
             ids = [id_ for id_ in ids if id_ not in resueltos]
 
-            correos: list[CorreoPendiente] = []
-            for id_ in ids:
-                detalle = await cliente.get(
-                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{id_}",
-                    headers=cabeceras,
-                    params={"format": "metadata", "metadataHeaders": ["From", "Subject", "Date"]},
-                )
-                detalle.raise_for_status()
-                datos = detalle.json()
-                cabeceras_msg = {h["name"]: h["value"] for h in datos.get("payload", {}).get("headers", [])}
-                correos.append(
-                    CorreoPendiente(
-                        id=id_,
-                        de=cabeceras_msg.get("From", "?"),
-                        asunto=cabeceras_msg.get("Subject", "(sin asunto)"),
-                        resumen=html.unescape(datos.get("snippet", "")),
-                        fecha=cabeceras_msg.get("Date", ""),
-                    )
-                )
+            # En paralelo, no una por una -- con la bandeja llena esto eran fácilmente
+            # 15-20 llamadas secuenciales de ida y vuelta a Gmail (revisión de calidad
+            # de código, 2026-08-27). asyncio.gather conserva el orden de `ids`, y si
+            # cualquiera falla se relanza esa misma excepción tal cual antes.
+            correos = list(await asyncio.gather(*(_detalle_correo(cliente, cabeceras, id_) for id_ in ids)))
     except httpx.HTTPError:
         return [], False
 

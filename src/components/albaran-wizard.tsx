@@ -6,9 +6,7 @@
  * confirma "registrar", descuenta stock de verdad en Grocy y escribe en la
  * contabilidad -- por eso hay una confirmación explícita antes, aparte del botón. */
 
-import { useState } from 'react';
-import { File, Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -37,7 +35,7 @@ import {
   type PrevisualizacionAlbaran,
   type ResultadoAlbaran,
 } from '@/lib/api';
-import { tokenStore } from '@/lib/token-store';
+import { descargarYCompartir } from '@/lib/descargas';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
@@ -87,9 +85,15 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
     }
   }
 
-  if (paso === 'cliente' && clientes === null && !cargando && !error) {
-    cargarClientes();
-  }
+  // useEffect, no una llamada directa en el cuerpo del render -- disparar un fetch
+  // ahí se repite en cada render mientras se cumpla la condición (y React StrictMode
+  // lo ejecuta dos veces a propósito para detectar justo esto). Revisión de calidad
+  // de código, 2026-08-27.
+  useEffect(() => {
+    if (paso === 'cliente' && clientes === null && !cargando && !error) {
+      cargarClientes();
+    }
+  }, [paso, clientes, cargando, error]);
 
   async function elegirCliente(cliente: string) {
     setCargando(true);
@@ -247,15 +251,7 @@ export function AlbaranWizard({ onVolver }: { onVolver: () => void }) {
   async function descargar(tipo: 'docx' | 'pdf') {
     if (!sesion) return;
     try {
-      const token = tokenStore.getAccessToken();
-      const destino = new File(Paths.cache, `albaran-${sesion}.${tipo}`);
-      const archivo = await File.downloadFileAsync(urlDescargarAlbaran(sesion, tipo), destino, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        idempotent: true,
-      });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(archivo.uri);
-      }
+      await descargarYCompartir(urlDescargarAlbaran(sesion, tipo), `albaran-${sesion}.${tipo}`);
     } catch {
       setError('No se ha podido descargar el documento.');
     }

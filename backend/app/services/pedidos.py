@@ -13,10 +13,8 @@ from datetime import datetime
 from typing import TypedDict
 
 import asyncpg
-import httpx
 
-from app.config import settings
-from app.services import supabase_db
+from app.services import supabase_db, wbd
 
 logger = logging.getLogger(__name__)
 
@@ -62,15 +60,11 @@ async def pedidos_confirmados() -> tuple[list[Pedido], bool]:
         return [], False
 
     try:
-        conn = await supabase_db.conectar()
+        async with supabase_db.conexion() as conn:
+            filas = await conn.fetch(_CONSULTA)
     except (OSError, asyncpg.PostgresError):
         logger.exception("No se ha podido conectar a Supabase para pedidos_confirmados()")
         return [], False
-
-    try:
-        filas = await conn.fetch(_CONSULTA)
-    finally:
-        await conn.close()
 
     return [
         Pedido(
@@ -127,54 +121,26 @@ class ResultadoAccionPedido(TypedDict):
 
 
 async def pedido_accion(order_id: str, accion: str) -> ResultadoAccionPedido:
-    if not settings.ninumapp_api_secret:
+    resp = await wbd.peticion("POST", "/api/ninumapp-pedido-accion", json={"orderId": order_id, "accion": accion})
+    if resp is None or resp.status_code != 200:
         return {"ok": False, "status": None}
-    try:
-        async with httpx.AsyncClient(timeout=15) as cliente:
-            resp = await cliente.post(
-                f"{settings.wbd_url.rstrip('/')}/api/ninumapp-pedido-accion",
-                headers={"X-Notificaciones-Secret": settings.ninumapp_api_secret, "Content-Type": "application/json"},
-                json={"orderId": order_id, "accion": accion},
-            )
-            if resp.status_code != 200:
-                return {"ok": False, "status": None}
-            datos = resp.json()
-            return {"ok": True, "status": datos.get("status")}
-    except httpx.HTTPError:
-        return {"ok": False, "status": None}
+    return {"ok": True, "status": resp.json().get("status")}
 
 
 async def pedido_adjuntos_listar(order_id: str) -> list[AdjuntoPedido]:
-    if not settings.ninumapp_api_secret:
+    resp = await wbd.peticion("GET", "/api/ninumapp-pedido-adjuntos", params={"orderId": order_id})
+    if resp is None or resp.status_code != 200:
         return []
-    try:
-        async with httpx.AsyncClient(timeout=15) as cliente:
-            resp = await cliente.get(
-                f"{settings.wbd_url.rstrip('/')}/api/ninumapp-pedido-adjuntos",
-                headers={"X-Notificaciones-Secret": settings.ninumapp_api_secret},
-                params={"orderId": order_id},
-            )
-            if resp.status_code != 200:
-                return []
-            return resp.json().get("adjuntos", [])
-    except httpx.HTTPError:
-        return []
+    return resp.json().get("adjuntos", [])
 
 
 async def pedido_adjunto_subir(order_id: str, tipo: str, nombre_archivo: str, contenido: bytes, content_type: str) -> bool:
-    if not settings.ninumapp_api_secret:
-        return False
-    try:
-        async with httpx.AsyncClient(timeout=30) as cliente:
-            resp = await cliente.post(
-                f"{settings.wbd_url.rstrip('/')}/api/ninumapp-pedido-adjuntos",
-                headers={"X-Notificaciones-Secret": settings.ninumapp_api_secret},
-                data={"orderId": order_id, "tipo": tipo},
-                files={"file": (nombre_archivo, contenido, content_type)},
-            )
-            return resp.status_code == 200
-    except httpx.HTTPError:
-        return False
+    resp = await wbd.peticion(
+        "POST", "/api/ninumapp-pedido-adjuntos", timeout=30,
+        data={"orderId": order_id, "tipo": tipo},
+        files={"file": (nombre_archivo, contenido, content_type)},
+    )
+    return resp is not None and resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -224,29 +190,25 @@ async def compradores_ediciones() -> tuple[list[CompradorEdicion], bool]:
         return [], False
 
     try:
-        conn = await supabase_db.conectar()
+        async with supabase_db.conexion() as conn:
+            pedidos = await conn.fetch(_CONSULTA_EDICIONES)
+            ids = [p["id"] for p in pedidos]
+            lineas_por_pedido: dict[str, list[LineaEdicion]] = {}
+            edicion_por_pedido: dict[str, str | None] = {}
+            if ids:
+                filas_items = await conn.fetch(
+                    "select order_id, referencia, nombre, unidades from order_items where order_id = any($1::uuid[])",
+                    ids,
+                )
+                for fila in filas_items:
+                    oid = str(fila["order_id"])
+                    lineas_por_pedido.setdefault(oid, []).append({"nombre": fila["nombre"], "unidades": fila["unidades"]})
+                    if oid not in edicion_por_pedido:
+                        referencia = fila["referencia"] or ""
+                        edicion_por_pedido[oid] = referencia.split(":", 1)[0] if ":" in referencia else None
     except (OSError, asyncpg.PostgresError):
         logger.exception("No se ha podido conectar a Supabase para compradores_ediciones()")
         return [], False
-
-    try:
-        pedidos = await conn.fetch(_CONSULTA_EDICIONES)
-        ids = [p["id"] for p in pedidos]
-        lineas_por_pedido: dict[str, list[LineaEdicion]] = {}
-        edicion_por_pedido: dict[str, str | None] = {}
-        if ids:
-            filas_items = await conn.fetch(
-                "select order_id, referencia, nombre, unidades from order_items where order_id = any($1::uuid[])",
-                ids,
-            )
-            for fila in filas_items:
-                oid = str(fila["order_id"])
-                lineas_por_pedido.setdefault(oid, []).append({"nombre": fila["nombre"], "unidades": fila["unidades"]})
-                if oid not in edicion_por_pedido:
-                    referencia = fila["referencia"] or ""
-                    edicion_por_pedido[oid] = referencia.split(":", 1)[0] if ":" in referencia else None
-    finally:
-        await conn.close()
 
     return [
         CompradorEdicion(
@@ -267,17 +229,7 @@ async def compradores_ediciones() -> tuple[list[CompradorEdicion], bool]:
 
 
 async def pedido_qr(order_id: str) -> tuple[bytes, str] | None:
-    if not settings.ninumapp_api_secret:
+    resp = await wbd.peticion("GET", "/api/ninumapp-pedido-qr", params={"orderId": order_id})
+    if resp is None or resp.status_code != 200:
         return None
-    try:
-        async with httpx.AsyncClient(timeout=15) as cliente:
-            resp = await cliente.get(
-                f"{settings.wbd_url.rstrip('/')}/api/ninumapp-pedido-qr",
-                headers={"X-Notificaciones-Secret": settings.ninumapp_api_secret},
-                params={"orderId": order_id},
-            )
-            if resp.status_code != 200:
-                return None
-            return resp.content, resp.headers.get("content-type", "image/png")
-    except httpx.HTTPError:
-        return None
+    return resp.content, resp.headers.get("content-type", "image/png")

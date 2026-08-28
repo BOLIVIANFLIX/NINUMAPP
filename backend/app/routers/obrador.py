@@ -3,6 +3,7 @@ from fastapi.responses import Response
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.estado_conexion import con_estado
 from app.services import grocy as grocy_service
 from app.services import ha as ha_service
 from app.services import panel_agente
@@ -14,11 +15,7 @@ router = APIRouter(prefix="/api/obrador", tags=["obrador"])
 @router.get("/alarmas")
 async def alarmas(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await ha_service.alarmas_neveras()
-    return {
-        "alarmas": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "Home Assistant todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "Home Assistant todavía no está conectado en NINUMAPP.", alarmas=lista)
 
 
 @router.get("/alarmas-recientes")
@@ -26,11 +23,7 @@ async def alarmas_recientes(usuario: Usuario = Depends(usuario_actual)):
     """Historial real de sensores (últimas 5, vistas o no) -- no la lista de
     automatizaciones. Mismo registro permanente que /panel/obrador (Sensores)."""
     lista, conectado = await panel_agente.alarmas_recientes()
-    return {
-        "recientes": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", recientes=lista)
 
 
 @router.get("/alarmas-no-vistas")
@@ -59,13 +52,10 @@ async def alarmas_marcar_vistas(usuario: Usuario = Depends(usuario_actual)):
 async def sensores(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await ha_service.sensores_obrador()
     alarma, _ = await ha_service.alarmas_activas()
-    return {
-        "sensores": lista,
-        "alarma_activa": alarma,
-        "camaras": ha_service.camaras(),
-        "conectado": conectado,
-        "aviso": None if conectado else "Home Assistant todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(
+        conectado, "Home Assistant todavía no está conectado en NINUMAPP.",
+        sensores=lista, alarma_activa=alarma, camaras=ha_service.camaras(),
+    )
 
 
 @router.get("/camaras/{entity_id}/snapshot")
@@ -79,8 +69,4 @@ async def snapshot_camara(entity_id: str, usuario: Usuario = Depends(usuario_act
 @router.get("/recetas")
 async def recetas(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await grocy_service.recetas()
-    return {
-        "recetas": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "Grocy todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "Grocy todavía no está conectado en NINUMAPP.", recetas=lista)

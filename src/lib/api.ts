@@ -7,6 +7,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
 
+import { mutar } from '@/lib/action-queue';
 import { tokenStore } from '@/lib/token-store';
 
 // 10.0.2.2 es "localhost del ordenador" visto desde el emulador Android; en un
@@ -207,7 +208,7 @@ export interface CambiosPedido {
 }
 
 export async function editarPedido(id: string, cambios: CambiosPedido): Promise<void> {
-  await api.post(`/api/pedidos/${id}/editar`, cambios);
+  await mutar(`/api/pedidos/${id}/editar`, 'post', cambios);
 }
 
 export async function marcarPedidoEntregado(id: string): Promise<{ ok: boolean; status: string | null }> {
@@ -216,7 +217,7 @@ export async function marcarPedidoEntregado(id: string): Promise<{ ok: boolean; 
 }
 
 export async function marcarPedidoPagado(id: string): Promise<void> {
-  await api.post(`/api/pedidos/${id}/pagado`);
+  await mutar(`/api/pedidos/${id}/pagado`, 'post');
 }
 
 export interface AdjuntoPedido {
@@ -239,28 +240,13 @@ export async function subirAdjuntoPedido(id: string, tipo: 'pedido' | 'albaran',
   await api.post(`/api/pedidos/${id}/adjuntos`, datos);
 }
 
-export interface AlarmaHA {
-  entity_id: string;
-  nombre: string;
-  ultima_vez: string | null;
-}
-
-export interface RespuestaAlarmas extends RespuestaConAviso<AlarmaHA> {
-  alarmas: AlarmaHA[];
-}
-
-export async function obtenerAlarmas(): Promise<RespuestaAlarmas> {
-  const resp = await api.get('/api/obrador/alarmas');
-  return resp.data;
-}
-
 export async function obtenerAlarmasNoVistas(): Promise<number> {
   const resp = await api.get('/api/obrador/alarmas-no-vistas');
   return resp.data.no_vistas;
 }
 
 export async function marcarAlarmasVistas(): Promise<void> {
-  await api.post('/api/obrador/alarmas-marcar-vistas');
+  await mutar('/api/obrador/alarmas-marcar-vistas', 'post');
 }
 
 export interface SensorHA {
@@ -294,21 +280,6 @@ export function urlSnapshotCamara(entityId: string, v?: number): string {
   // primera vez que se abrió la pantalla, aunque HA tenga una más reciente (bug real,
   // Ariadna, 2026-08-26: "las cámaras no actualizan, la imagen es de ayer por la noche").
   return `${API_URL}/api/obrador/camaras/${entityId}/snapshot${v ? `?v=${v}` : ''}`;
-}
-
-export interface Receta {
-  id: number;
-  nombre: string;
-  descripcion: string | null;
-}
-
-export interface RespuestaRecetas extends RespuestaConAviso<Receta> {
-  recetas: Receta[];
-}
-
-export async function obtenerRecetas(): Promise<RespuestaRecetas> {
-  const resp = await api.get('/api/obrador/recetas');
-  return resp.data;
 }
 
 export interface SolicitudPendiente {
@@ -352,7 +323,7 @@ export interface CambiosSolicitud {
  * particular, fecha). Al incluir fecha, marca fecha_confirmada_por_operador y
  * sincroniza el calendario compartido. Ver app/services/avisos.py::editar_solicitud. */
 export async function editarSolicitud(id: string, cambios: CambiosSolicitud): Promise<void> {
-  await api.post(`/api/avisos/solicitud/${id}/editar`, cambios);
+  await mutar(`/api/avisos/solicitud/${id}/editar`, 'post', cambios);
 }
 
 /** FormData con la foto -- se sube tal cual, sin fijar Content-Type a mano (axios/RN
@@ -436,7 +407,7 @@ export async function confirmarInventario(id: string, correccion?: CorreccionTic
 }
 
 export async function descartarInventario(id: string): Promise<void> {
-  await api.post('/api/inventario/descartar', { id });
+  await mutar('/api/inventario/descartar', 'post', { id });
 }
 
 export interface StockGrocy {
@@ -458,7 +429,7 @@ export async function obtenerStockActual(): Promise<RespuestaStockInventario> {
  * 2026-08-27: ajustes sobre la marcha (p.ej. tirar un bote estropeado) sin entrar
  * en Grocy directamente. */
 export async function corregirStock(productoId: number, nuevaCantidad: number): Promise<void> {
-  await api.post('/api/inventario/corregir-stock', { producto_id: productoId, nueva_cantidad: nuevaCantidad });
+  await mutar('/api/inventario/corregir-stock', 'post', { producto_id: productoId, nueva_cantidad: nuevaCantidad });
 }
 
 export interface MovimientoInventario {
@@ -692,6 +663,13 @@ export async function anadirLineaAlbaran(
   return resp.data;
 }
 
+// quitarLineaAlbaran/ponerReferenciaAlbaran/ponerFechaEntregaAlbaran se quedan sin
+// pasar por mutar() a propósito -- son pasos de un asistente con estado en el
+// backend (misma "sesion" que anadirLineaAlbaran/previsualizarAlbaran/finalizarAlbaran,
+// ninguno de los cuales puede pasar por la cola: previsualizar/finalizar necesitan
+// leer ese estado en el momento, y aplicar estos pasos más tarde en otro orden podría
+// dejar la sesión inconsistente). Revisión de calidad de código, 2026-08-27.
+
 export async function quitarLineaAlbaran(sesion: string, indice: number): Promise<void> {
   await api.post('/api/pedidos-b2b/albaran/linea/quitar', { sesion, indice });
 }
@@ -754,7 +732,7 @@ export async function cerrarMes(cliente: string): Promise<{ ok: boolean; marcado
 }
 
 export async function marcarFacturado(numero: string): Promise<void> {
-  await api.post('/api/pedidos-b2b/marcar-facturado', { numero });
+  await mutar('/api/pedidos-b2b/marcar-facturado', 'post', { numero });
 }
 
 export async function cerrarCobroMensual(cliente: string): Promise<{ ok: boolean; marcados: number }> {
@@ -763,7 +741,7 @@ export async function cerrarCobroMensual(cliente: string): Promise<{ ok: boolean
 }
 
 export async function marcarCobrado(numero: string): Promise<void> {
-  await api.post('/api/pedidos-b2b/marcar-cobrado', { numero });
+  await mutar('/api/pedidos-b2b/marcar-cobrado', 'post', { numero });
 }
 
 // --- Grand Folies ------------------------------------------------------------
@@ -811,7 +789,7 @@ export async function confirmarGrandFolies(
 }
 
 export async function descartarGrandFolies(id: string): Promise<void> {
-  await api.post('/api/pedidos-b2b/grand-folies/descartar', { id });
+  await mutar('/api/pedidos-b2b/grand-folies/descartar', 'post', { id });
 }
 
 // --- Pedidos B2B del carrito privado en la web --------------------------------
@@ -865,7 +843,7 @@ export async function confirmarB2BCarrito(
 }
 
 export async function descartarB2BCarrito(id: string): Promise<void> {
-  await api.post('/api/pedidos-b2b/b2b-carrito/descartar', { id });
+  await mutar('/api/pedidos-b2b/b2b-carrito/descartar', 'post', { id });
 }
 
 export interface DocumentoReciente {
@@ -919,7 +897,7 @@ export async function eliminarUsuarioPanel(usuario: string): Promise<ResultadoUs
 }
 
 export async function cerrarSesionUsuarioPanel(usuario: string): Promise<void> {
-  await api.post('/api/usuarios-panel/cerrar-sesion', { usuario });
+  await mutar('/api/usuarios-panel/cerrar-sesion', 'post', { usuario });
 }
 
 export async function cambiarPasswordUsuarioPanel(usuario: string, password: string): Promise<ResultadoUsuarioPanel> {
@@ -1030,11 +1008,11 @@ export async function obtenerAnalisisRecetas(): Promise<RespuestaAnalisisRecetas
 }
 
 export async function guardarConfigCostes(precioHora: number, horasMes: number): Promise<void> {
-  await api.post('/api/analisis/costes/guardar-config', { precio_hora: precioHora, horas_mes: horasMes });
+  await mutar('/api/analisis/costes/guardar-config', 'post', { precio_hora: precioHora, horas_mes: horasMes });
 }
 
 export async function guardarTiempoReceta(recipeId: number, minutos: number, precioHora: number): Promise<void> {
-  await api.post('/api/analisis/costes/guardar-tiempo', { recipe_id: recipeId, minutos, precio_hora: precioHora });
+  await mutar('/api/analisis/costes/guardar-tiempo', 'post', { recipe_id: recipeId, minutos, precio_hora: precioHora });
 }
 
 export interface SubidaPrecio {
@@ -1105,7 +1083,7 @@ export async function obtenerTrimestresRecientes(anio: number, trimestre: number
 // --- Notificaciones push ------------------------------------------------------
 
 export async function registrarTokenPush(token: string, plataforma: string): Promise<void> {
-  await api.post('/api/notificaciones/registrar-token', { token, plataforma });
+  await mutar('/api/notificaciones/registrar-token', 'post', { token, plataforma });
 }
 
 export interface PreferenciaNotificacion {
@@ -1120,7 +1098,7 @@ export async function obtenerPreferenciasNotificaciones(): Promise<PreferenciaNo
 }
 
 export async function guardarPreferenciaNotificacion(tipo: string, activo: boolean): Promise<void> {
-  await api.post('/api/notificaciones/preferencias', { tipo, activo });
+  await mutar('/api/notificaciones/preferencias', 'post', { tipo, activo });
 }
 
 export interface AvisoHistorial {
@@ -1143,11 +1121,11 @@ export async function obtenerAvisosNoLeidos(): Promise<number> {
 }
 
 export async function marcarAvisoLeido(id: string): Promise<void> {
-  await api.post(`/api/notificaciones/historial/${id}/leido`);
+  await mutar(`/api/notificaciones/historial/${id}/leido`, 'post');
 }
 
 export async function marcarTodosAvisosLeidos(): Promise<void> {
-  await api.post('/api/notificaciones/historial/marcar-todos-leidos');
+  await mutar('/api/notificaciones/historial/marcar-todos-leidos', 'post');
 }
 
 export function urlTicketsPeriodo(desde: string, hasta: string): string {
@@ -1204,15 +1182,15 @@ export interface CrearGastoBody {
 }
 
 export async function crearGasto(body: CrearGastoBody): Promise<void> {
-  await api.post('/api/ingresos/gastos/crear', body);
+  await mutar('/api/ingresos/gastos/crear', 'post', body);
 }
 
 export async function eliminarGasto(id: number): Promise<void> {
-  await api.post('/api/ingresos/gastos/eliminar', { id });
+  await mutar('/api/ingresos/gastos/eliminar', 'post', { id });
 }
 
 export async function marcarGastoPagado(id: number): Promise<void> {
-  await api.post('/api/ingresos/gastos/marcar-pagado', { id });
+  await mutar('/api/ingresos/gastos/marcar-pagado', 'post', { id });
 }
 
 // --- Documentos históricos + ficha de cliente -------------------------------------
@@ -1295,7 +1273,7 @@ export async function obtenerClienteDetalle(nombre: string): Promise<RespuestaCl
 }
 
 export async function crearClienteProfesional(nombre: string, direccion: string, cif: string, tipoFacturacion: string): Promise<void> {
-  await api.post('/api/pedidos-b2b/clientes/crear', { nombre, direccion, cif, tipo_facturacion: tipoFacturacion });
+  await mutar('/api/pedidos-b2b/clientes/crear', 'post', { nombre, direccion, cif, tipo_facturacion: tipoFacturacion });
 }
 
 export interface ProductoCatalogo {
@@ -1312,42 +1290,27 @@ export async function obtenerCatalogoCliente(cliente: string): Promise<ProductoC
 }
 
 export async function crearProductoCatalogo(cliente: string, descripcion: string, precio: number, codigo?: string | null): Promise<void> {
-  await api.post('/api/pedidos-b2b/catalogo/crear', { cliente, descripcion, precio, codigo: codigo || null });
+  await mutar('/api/pedidos-b2b/catalogo/crear', 'post', { cliente, descripcion, precio, codigo: codigo || null });
 }
 
 export async function editarProductoCatalogo(id: number, descripcion: string, precio: number, codigo?: string | null): Promise<void> {
-  await api.post('/api/pedidos-b2b/catalogo/editar', { id, descripcion, precio, codigo: codigo || null });
+  await mutar('/api/pedidos-b2b/catalogo/editar', 'post', { id, descripcion, precio, codigo: codigo || null });
 }
 
 export async function eliminarProductoCatalogo(id: number): Promise<void> {
-  await api.post('/api/pedidos-b2b/catalogo/eliminar', { id });
+  await mutar('/api/pedidos-b2b/catalogo/eliminar', 'post', { id });
 }
 
 export async function editarClienteProfesional(
   nombre: string, direccion: string, cif: string, nombreDocumento: string | null, tipoFacturacion: string,
 ): Promise<void> {
-  await api.post('/api/pedidos-b2b/clientes/editar', { nombre, direccion, cif, nombre_documento: nombreDocumento, tipo_facturacion: tipoFacturacion });
+  await mutar('/api/pedidos-b2b/clientes/editar', 'post', { nombre, direccion, cif, nombre_documento: nombreDocumento, tipo_facturacion: tipoFacturacion });
 }
 
 // --- Precio público de la tienda online (override, ver WBD/src/lib/preciosOverride.ts) ---
 
-export interface PrecioTienda {
-  referencia: string;
-  precio: number;
-  actualizado_en: string;
-}
-
-export interface RespuestaPreciosTienda extends RespuestaConAviso<PrecioTienda> {
-  precios: PrecioTienda[];
-}
-
-export async function obtenerPreciosTienda(): Promise<RespuestaPreciosTienda> {
-  const resp = await api.get('/api/precios-tienda');
-  return resp.data;
-}
-
 export async function guardarPrecioTienda(referencia: string, precio?: number, activo?: boolean): Promise<void> {
-  await api.post('/api/precios-tienda/guardar', { referencia, precio, activo });
+  await mutar('/api/precios-tienda/guardar', 'post', { referencia, precio, activo });
 }
 
 export interface PiezaCatalogo {
@@ -1371,7 +1334,7 @@ export async function obtenerCatalogoTienda(): Promise<RespuestaCatalogoTienda> 
 }
 
 export async function eliminarPrecioTienda(referencia: string): Promise<void> {
-  await api.post('/api/precios-tienda/eliminar', { referencia });
+  await mutar('/api/precios-tienda/eliminar', 'post', { referencia });
 }
 
 // --- Avisos: correo → pedido, confirmar/mover pedido web -------------------------
@@ -1410,7 +1373,7 @@ export async function obtenerAvisosPendientes(): Promise<RespuestaAvisosPendient
 }
 
 export async function emailAsignarDia(id: number, fecha: string, descripcion: string): Promise<void> {
-  await api.post('/api/avisos/email/asignar-dia', { id, fecha, descripcion });
+  await mutar('/api/avisos/email/asignar-dia', 'post', { id, fecha, descripcion });
 }
 
 // pedidoWebConfirmar/pedidoWebMover se quitaron el 2026-08-27 -- auditoría de bases

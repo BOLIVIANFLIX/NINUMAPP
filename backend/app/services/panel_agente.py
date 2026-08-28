@@ -86,6 +86,28 @@ async def _get_q(ruta: str, params: dict[str, Any]) -> dict | list | None:
     return await _get(f"{ruta}?{urllib.parse.urlencode(limpio)}")
 
 
+async def _get_binario(
+    ruta: str, params: dict[str, Any], *, timeout: int = 20, content_type_por_defecto: str = "application/octet-stream"
+) -> tuple[bytes, str] | None:
+    """Descarga binaria (PDF/ZIP) de ninuma-agente -- antes vivía copiado casi
+    idéntico en descargar_albaran/inventario_tickets_periodo/documento_archivo
+    (revisión de calidad de código, 2026-08-27)."""
+    if not _configurada():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as cliente:
+            resp = await cliente.get(
+                f"{settings.panel_agente_url.rstrip('/')}{ruta}",
+                params=params,
+                headers={"X-Ninumapp-Secret": settings.ninumapp_api_secret},
+            )
+            if resp.status_code != 200:
+                return None
+            return resp.content, resp.headers.get("content-type", content_type_por_defecto)
+    except httpx.HTTPError:
+        return None
+
+
 async def _post(ruta: str, cuerpo: dict[str, Any]) -> dict | None:
     """A diferencia de _get, no traga errores en silencio devolviendo None -- quien
     escribe (generar un albarán, cerrar un mes) necesita saber si falló de verdad,
@@ -167,7 +189,7 @@ async def iniciar_albaran(sesion: str, cliente: str) -> None:
 
 
 async def estado_albaran(sesion: str) -> dict:
-    datos = await _get(f"/api/ninumapp/albaran/estado?sesion={sesion}")
+    datos = await _get_q("/api/ninumapp/albaran/estado", {"sesion": sesion})
     if datos is None:
         raise PanelAgenteError("No se ha podido conectar con ninuma-agente.")
     return datos
@@ -195,7 +217,7 @@ async def poner_fecha_entrega_albaran(sesion: str, fecha_entrega: str | None) ->
 
 
 async def previsualizar_albaran(sesion: str) -> dict:
-    datos = await _get(f"/api/ninumapp/albaran/previsualizar?sesion={sesion}")
+    datos = await _get_q("/api/ninumapp/albaran/previsualizar", {"sesion": sesion})
     if datos is None:
         raise PanelAgenteError("No se ha podido conectar con ninuma-agente.")
     return datos
@@ -208,20 +230,7 @@ async def finalizar_albaran(sesion: str, numero_manual: str | None, registrar: b
 
 
 async def descargar_albaran(sesion: str, tipo: str) -> tuple[bytes, str] | None:
-    if not _configurada():
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=20) as cliente:
-            resp = await cliente.get(
-                f"{settings.panel_agente_url.rstrip('/')}/api/ninumapp/albaran/descargar",
-                params={"sesion": sesion, "tipo": tipo},
-                headers={"X-Ninumapp-Secret": settings.ninumapp_api_secret},
-            )
-            if resp.status_code != 200:
-                return None
-            return resp.content, resp.headers.get("content-type", "application/octet-stream")
-    except httpx.HTTPError:
-        return None
+    return await _get_binario("/api/ninumapp/albaran/descargar", {"sesion": sesion, "tipo": tipo})
 
 
 # ---------------------------------------------------------------------------
@@ -421,20 +430,10 @@ async def trimestres_recientes(anio: int, trimestre: int) -> list[dict] | None:
 
 
 async def inventario_tickets_periodo(desde: str, hasta: str) -> tuple[bytes, str] | None:
-    if not _configurada():
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=30) as cliente:
-            resp = await cliente.get(
-                f"{settings.panel_agente_url.rstrip('/')}/api/ninumapp/inventario/tickets-periodo",
-                params={"desde": desde, "hasta": hasta},
-                headers={"X-Ninumapp-Secret": settings.ninumapp_api_secret},
-            )
-            if resp.status_code != 200:
-                return None
-            return resp.content, resp.headers.get("content-type", "application/zip")
-    except httpx.HTTPError:
-        return None
+    return await _get_binario(
+        "/api/ninumapp/inventario/tickets-periodo", {"desde": desde, "hasta": hasta},
+        timeout=30, content_type_por_defecto="application/zip",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -538,20 +537,7 @@ async def documento_detalle(numero: str) -> dict:
 
 
 async def documento_archivo(numero: str, tipo: str) -> tuple[bytes, str] | None:
-    if not _configurada():
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=20) as cliente:
-            resp = await cliente.get(
-                f"{settings.panel_agente_url.rstrip('/')}/api/ninumapp/documento/archivo",
-                params={"numero": numero, "tipo": tipo},
-                headers={"X-Ninumapp-Secret": settings.ninumapp_api_secret},
-            )
-            if resp.status_code != 200:
-                return None
-            return resp.content, resp.headers.get("content-type", "application/octet-stream")
-    except httpx.HTTPError:
-        return None
+    return await _get_binario("/api/ninumapp/documento/archivo", {"numero": numero, "tipo": tipo})
 
 
 async def cliente_detalle(nombre: str) -> dict:
@@ -643,6 +629,8 @@ async def gmail_ids_resueltos(gmail_ids: list[str]) -> list[str]:
     (sin ningún rastro pendiente en la app) -- para no mostrarlos en "Correos sin
     leer" sin ninguna acción posible. Falla en silencio a lista vacía (nada se
     filtra) si ninuma-agente no responde, igual que el resto de esta integración."""
+    if not gmail_ids:
+        return []
     try:
         datos = await _post("/api/ninumapp/gmail/ids-resueltos", {"gmail_ids": gmail_ids})
     except PanelAgenteError:

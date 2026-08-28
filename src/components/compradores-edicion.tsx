@@ -1,6 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { File, Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +10,7 @@ import { ListCard, ListRow, Pill, SectionLabel } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mensajeError, obtenerCompradoresEdicion, urlPedidoQr, type CompradorEdicion } from '@/lib/api';
+import { descargarYCompartir } from '@/lib/descargas';
 import { tokenStore } from '@/lib/token-store';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -101,11 +100,7 @@ function DetalleComprador({ comprador, onVolver }: { comprador: CompradorEdicion
     setCompartiendo(true);
     setError(null);
     try {
-      const destino = new File(Paths.cache, `entrada-${comprador.locator ?? comprador.id}.png`);
-      await File.downloadFileAsync(qrUrl, destino, { headers: token ? { Authorization: `Bearer ${token}` } : {}, idempotent: true });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(destino.uri);
-      }
+      await descargarYCompartir(qrUrl, `entrada-${comprador.locator ?? comprador.id}.png`);
     } catch (err) {
       setError(mensajeError(err));
     } finally {

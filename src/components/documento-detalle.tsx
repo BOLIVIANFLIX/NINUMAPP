@@ -1,5 +1,4 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { File, Paths } from 'expo-file-system';
 import { getContentUriAsync, StorageAccessFramework } from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
@@ -13,7 +12,7 @@ import { Ficha, FilaFicha } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { marcarCobrado, marcarFacturado, mensajeError, obtenerDocumentoDetalle, urlDocumentoArchivo } from '@/lib/api';
-import { tokenStore } from '@/lib/token-store';
+import { descargarACache as descargarUrlACache } from '@/lib/descargas';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
@@ -32,13 +31,8 @@ const MIME: Record<'pdf' | 'docx', string> = {
  *   compartir, se queda igual.
  * - PDF/Word: Storage Access Framework -- le pide UNA vez elegir una carpeta (p.ej.
  *   Descargas) y escribe el archivo ahí de verdad, no es un "compartir" disfrazado. */
-async function descargarACache(numero: string, tipo: 'pdf' | 'docx'): Promise<File> {
-  const token = tokenStore.getAccessToken();
-  const destino = new File(Paths.cache, `albaran-${numero}.${tipo}`);
-  return File.downloadFileAsync(urlDocumentoArchivo(numero, tipo), destino, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    idempotent: true,
-  });
+function descargarACache(numero: string, tipo: 'pdf' | 'docx') {
+  return descargarUrlACache(urlDocumentoArchivo(numero, tipo), `albaran-${numero}.${tipo}`);
 }
 
 export function DocumentoDetalle({

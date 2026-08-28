@@ -1,39 +1,22 @@
-import functools
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.errores import manejar_error as _manejar_error
+from app.routers.estado_conexion import con_estado
 from app.services import avisos as avisos_service
 from app.services import ha as ha_service
 from app.services import panel_agente
-from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/avisos", tags=["avisos"])
-
-
-def _manejar_error(f):
-    @functools.wraps(f)
-    async def envoltura(*args, **kwargs):
-        try:
-            return await f(*args, **kwargs)
-        except PanelAgenteError as e:
-            raise HTTPException(status_code=502, detail=str(e))
-
-    return envoltura
 
 
 @router.get("")
 async def listar(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await avisos_service.solicitudes_pendientes()
     alarma, _ = await ha_service.alarmas_activas()
-    return {
-        "solicitudes": lista,
-        "alarma_activa": alarma,
-        "conectado": conectado,
-        "aviso": None if conectado else "Supabase todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "Supabase todavía no está conectado en NINUMAPP.", solicitudes=lista, alarma_activa=alarma)
 
 
 class EditarSolicitudBody(BaseModel):
@@ -69,11 +52,7 @@ async def pendientes(usuario: Usuario = Depends(usuario_actual)):
     listas que /panel/avisos, con los mismos id/locator que usan asignar-dia y
     confirmar/mover más abajo."""
     datos, conectado = await panel_agente.avisos_pendientes()
-    return {
-        **datos,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", **datos)
 
 
 class AsignarDiaBody(BaseModel):

@@ -4,16 +4,15 @@ propio (ver services/panel_agente.py). NINUMAPP nunca reimplementa esta
 clasificación ni el descuento de stock -- todo pasa por ninuma-agente, igual que
 albaranes/Grand Folies, para que quede en la contabilidad real."""
 
-import functools
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.errores import manejar_error as _manejar_error
+from app.routers.estado_conexion import con_estado
 from app.services import panel_agente
-from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/inventario", tags=["inventario"])
 
@@ -23,17 +22,6 @@ router = APIRouter(prefix="/api/inventario", tags=["inventario"])
 # pero rechazar aquí lo que ya viene mal etiquetado evita gastar la llamada a la IA
 # en basura.
 _TAMANO_MAXIMO_BYTES = 15 * 1024 * 1024
-
-
-def _manejar_error(f):
-    @functools.wraps(f)
-    async def envoltura(*args, **kwargs):
-        try:
-            return await f(*args, **kwargs)
-        except PanelAgenteError as e:
-            raise HTTPException(status_code=502, detail=str(e))
-
-    return envoltura
 
 
 @router.post("/escanear")
@@ -83,21 +71,13 @@ async def descartar(body: EscaneoIdBody, usuario: Usuario = Depends(usuario_actu
 @router.get("/stock-actual")
 async def stock_actual(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.inventario_stock_actual()
-    return {
-        "stock": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", stock=lista)
 
 
 @router.get("/movimientos-recientes")
 async def movimientos_recientes(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.inventario_movimientos_recientes()
-    return {
-        "movimientos": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", movimientos=lista)
 
 
 class CorregirStockBody(BaseModel):

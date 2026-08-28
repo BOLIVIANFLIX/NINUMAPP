@@ -1,7 +1,7 @@
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useFocusEffect, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,6 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha, ListCard, ListRow, SectionLabel, Segmented } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useResetAlSalir } from '@/hooks/use-reset-al-salir';
 import { useTheme } from '@/hooks/use-theme';
 import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
@@ -35,7 +36,6 @@ type Sub = 'Sensores' | 'Inventario';
 
 export default function ObradorScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const [vista, setVista] = useState<Vista>('obrador');
   const [sub, setSub] = useState<Sub>('Sensores');
@@ -89,13 +89,10 @@ export default function ObradorScreen() {
       marcarAlarmasVistas()
         .then(() => queryClient.invalidateQueries({ queryKey: ['obrador', 'alarmas-no-vistas'] }))
         .catch(() => {});
-      return volverAlPrincipal;
     }, [queryClient]),
   );
 
-  useEffect(() => {
-    return navigation.addListener('tabPress' as never, volverAlPrincipal);
-  }, [navigation]);
+  useResetAlSalir(volverAlPrincipal);
 
   const recientes = useQuery({ queryKey: ['obrador', 'alarmas-recientes'], queryFn: obtenerAlarmasRecientes });
   const sensores = useQuery({ queryKey: ['obrador', 'sensores'], queryFn: obtenerSensores, refetchInterval: 30_000 });

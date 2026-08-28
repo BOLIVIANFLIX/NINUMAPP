@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.estado_conexion import con_estado
 from app.services import avisos as avisos_service
 from app.services import pedidos as pedidos_service
 
@@ -12,11 +13,7 @@ router = APIRouter(prefix="/api/pedidos", tags=["pedidos"])
 @router.get("")
 async def listar(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await pedidos_service.pedidos_confirmados()
-    return {
-        "pedidos": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "Supabase todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "Supabase todavía no está conectado en NINUMAPP.", pedidos=lista)
 
 
 # ---------------------------------------------------------------------------
@@ -92,11 +89,7 @@ async def subir_adjunto(
 @router.get("/ediciones")
 async def ediciones(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await pedidos_service.compradores_ediciones()
-    return {
-        "compradores": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "Supabase todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "Supabase todavía no está conectado en NINUMAPP.", compradores=lista)
 
 
 @router.get("/ediciones/{order_id}/qr")

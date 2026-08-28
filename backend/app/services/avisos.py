@@ -10,10 +10,8 @@ from datetime import datetime
 from typing import TypedDict
 
 import asyncpg
-import httpx
 
-from app.config import settings
-from app.services import supabase_db
+from app.services import supabase_db, wbd
 
 
 class SolicitudPendiente(TypedDict):
@@ -64,14 +62,10 @@ async def solicitudes_pendientes() -> tuple[list[SolicitudPendiente], bool]:
         return [], False
 
     try:
-        conn = await supabase_db.conectar()
+        async with supabase_db.conexion() as conn:
+            filas = await conn.fetch(_CONSULTA)
     except (OSError, asyncpg.PostgresError):
         return [], False
-
-    try:
-        filas = await conn.fetch(_CONSULTA)
-    finally:
-        await conn.close()
 
     return [
         SolicitudPendiente(
@@ -117,8 +111,6 @@ async def editar_solicitud(
     fecha, marca fecha_confirmada_por_operador y sincroniza el calendario compartido
     (ver WBD/src/lib/telegram-pedidos.ts). Devuelve False sin lanzar si WBD no está
     configurado o la llamada falla -- el error ya lo maneja el router."""
-    if not settings.ninumapp_api_secret:
-        return False
     cuerpo: dict = {"orderId": order_id}
     if fecha is not None:
         cuerpo["fecha"] = fecha
@@ -135,13 +127,5 @@ async def editar_solicitud(
     if tipo_contacto is not None:
         cuerpo["tipoContacto"] = tipo_contacto
 
-    try:
-        async with httpx.AsyncClient(timeout=15) as cliente:
-            resp = await cliente.post(
-                f"{settings.wbd_url.rstrip('/')}/api/ninumapp-agendar",
-                headers={"X-Notificaciones-Secret": settings.ninumapp_api_secret, "Content-Type": "application/json"},
-                json=cuerpo,
-            )
-            return resp.status_code == 200
-    except httpx.HTTPError:
-        return False
+    resp = await wbd.peticion("POST", "/api/ninumapp-agendar", json=cuerpo)
+    return resp is not None and resp.status_code == 200

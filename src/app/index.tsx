@@ -1,6 +1,6 @@
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -20,6 +20,7 @@ import { ThemedView } from '@/components/themed-view';
 import { GradientCard, KpiCard, KpiRow, ListCard, ListRow, SectionLabel } from '@/components/ui/panel';
 import { UsuariosPanel } from '@/components/usuarios-panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useResetAlSalir } from '@/hooks/use-reset-al-salir';
 import { useTheme } from '@/hooks/use-theme';
 import { useVolverAtras } from '@/hooks/use-volver-atras';
 import { mensajeError, obtenerAvisosNoLeidos, obtenerDocumentosRecientes, obtenerIvaTrimestre, obtenerResumen } from '@/lib/api';
@@ -39,7 +40,6 @@ export default function InicioScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { cerrarSesion } = useAuth();
-  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const [vista, setVista] = useState<Vista>('inicio');
   // Documento abierto desde "Documentos recientes" -- índice (no solo el número)
@@ -55,21 +55,10 @@ export default function InicioScreen() {
   useVolverAtras(vista === 'inicio', () => setVista('inicio'));
   useVolverAtras(indiceDocAbierto === null, () => setIndiceDocAbierto(null));
 
-  // Al salir de la pestaña siempre se vuelve a la pantalla principal -- nunca se
-  // queda "congelada" en el submenú donde estaba (las pestañas de abajo no se
-  // desmontan al cambiar entre ellas, así que hay que resetear a mano).
-  useFocusEffect(
-    useCallback(() => {
-      return () => setVista('inicio');
-    }, []),
-  );
-
-  // Volver a tocar el icono de esta misma pestaña (ya activa) también debe volver a
-  // la pantalla principal -- useFocusEffect no lo cubre porque no hay blur/focus, es
-  // la misma pestaña ya en primer plano.
-  useEffect(() => {
-    return navigation.addListener('tabPress' as never, () => setVista('inicio'));
-  }, [navigation]);
+  // Al salir de la pestaña, o al volver a tocar su propio icono ya activo, siempre
+  // se vuelve a la pantalla principal -- nunca se queda "congelada" en el submenú
+  // donde estaba (las pestañas de abajo no se desmontan al cambiar entre ellas).
+  useResetAlSalir(() => setVista('inicio'));
 
   const { data: resumen, error } = useQuery({
     queryKey: ['resumen'],

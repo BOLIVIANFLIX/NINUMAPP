@@ -17,7 +17,7 @@ import hmac
 from datetime import datetime
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -144,10 +144,12 @@ class AvisoHistorialOut(BaseModel):
 
 @router.get("/historial", response_model=list[AvisoHistorialOut])
 async def historial(
-    limite: int = 50, usuario: Usuario = Depends(usuario_actual), db: AsyncSession = Depends(get_db)
+    limite: int = Query(default=50, ge=0, le=200),
+    usuario: Usuario = Depends(usuario_actual),
+    db: AsyncSession = Depends(get_db),
 ):
     filas = (
-        await db.execute(select(AvisoHistorial).order_by(desc(AvisoHistorial.creado_en)).limit(min(limite, 200)))
+        await db.execute(select(AvisoHistorial).order_by(desc(AvisoHistorial.creado_en)).limit(limite))
     ).scalars().all()
     return filas
 

@@ -44,15 +44,12 @@ async def resumen_mes() -> tuple[ResumenMes, bool]:
 
     if supabase_db.configurada():
         try:
-            conn = await supabase_db.conectar()
-            try:
+            async with supabase_db.conexion() as conn:
                 ahora = datetime.now(timezone.utc)
                 inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                 fila = await conn.fetchrow(_CONSULTA, inicio_mes)
                 pedidos_confirmados = fila["pedidos_confirmados"]
                 conectado_supabase = True
-            finally:
-                await conn.close()
         except (OSError, asyncpg.PostgresError):
             logger.exception("No se ha podido conectar a Supabase para resumen_mes()")
 

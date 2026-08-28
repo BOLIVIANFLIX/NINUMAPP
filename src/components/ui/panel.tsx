@@ -2,7 +2,7 @@
  * (ninuma-agente/design/ninuma-app-propuesta.html): tarjetas blancas redondeadas sobre
  * fondo gris, filas de lista con separador, pills de estado y etiquetas de sección. */
 
-import { StyleSheet, View, type ViewProps } from 'react-native';
+import { Pressable, StyleSheet, View, type ViewProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -42,7 +42,7 @@ export function ListRow({
   onPress?: () => void;
 }) {
   const theme = useTheme();
-  const Wrapper = onPress ? require('react-native').Pressable : View;
+  const Wrapper = onPress ? Pressable : View;
   return (
     <Wrapper onPress={onPress} style={[styles.listRow, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.separator }]}>
       {left}
@@ -179,7 +179,6 @@ export function KpiCard({ label, value, delta, wide }: { label: string; value: s
 
 export function Segmented({ opciones, activo, onCambiar }: { opciones: string[]; activo: string; onCambiar: (v: string) => void }) {
   const theme = useTheme();
-  const { Pressable } = require('react-native');
   return (
     <View style={[styles.segmented, { backgroundColor: theme.backgroundSelected }]}>
       {opciones.map((op) => {
@@ -200,7 +199,6 @@ export function Segmented({ opciones, activo, onCambiar }: { opciones: string[];
 }
 
 export function GradientCard({ title, subtitle, boton, onPress }: { title: string; subtitle: string; boton: string; onPress?: () => void }) {
-  const { Pressable } = require('react-native');
   return (
     <Pressable onPress={onPress} style={styles.gradientCard}>
       <View style={styles.gradientRow}>

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.estado_conexion import con_estado
 from app.services import gmail as gmail_service
 from app.services import google_auth
 
@@ -28,8 +29,4 @@ async def callback(code: str | None = None, error: str | None = None):
 @router.get("/correos-pendientes")
 async def correos_pendientes(usuario: Usuario = Depends(usuario_actual)):
     correos, conectado = await gmail_service.correos_pendientes()
-    return {
-        "correos": correos,
-        "conectado": conectado,
-        "aviso": None if conectado else "Gmail todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "Gmail todavía no está conectado en NINUMAPP.", correos=correos)

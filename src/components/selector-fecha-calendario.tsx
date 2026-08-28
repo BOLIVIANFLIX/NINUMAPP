@@ -7,39 +7,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { obtenerEventosCalendario, type EventoCalendario } from '@/lib/api';
 import { colorEvento } from '@/lib/calendario-colores';
-
-const MESES = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-];
-const DIAS_SEMANA = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-
-function inicioMes(fecha: Date): Date {
-  return new Date(fecha.getFullYear(), fecha.getMonth(), 1);
-}
-function finMes(fecha: Date): Date {
-  return new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0, 23, 59, 59);
-}
-function isoFecha(fecha: Date): string {
-  const y = fecha.getFullYear();
-  const m = String(fecha.getMonth() + 1).padStart(2, '0');
-  const d = String(fecha.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-function mismoDia(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-function construirRejilla(mesRef: Date): Date[] {
-  const primero = inicioMes(mesRef);
-  const offset = (primero.getDay() + 6) % 7;
-  const inicio = new Date(primero);
-  inicio.setDate(inicio.getDate() - offset);
-  return Array.from({ length: 42 }, (_, i) => {
-    const d = new Date(inicio);
-    d.setDate(d.getDate() + i);
-    return d;
-  });
-}
+import { construirRejilla, DIAS_SEMANA, finMes, inicioMes, isoFecha, MESES, mismoDia } from '@/lib/calendario-utils';
 
 /** Miniatura del calendario general de la app (mismo color por estado -- verde
  * pagado, amarillo confirmado por Ariadna sin pagar, rojo solo solicitado, gris

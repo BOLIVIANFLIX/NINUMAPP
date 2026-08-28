@@ -3,7 +3,6 @@ services/panel_agente.py). Incluye generar albarán real, cerrar mes/facturar, y
 confirmar pedidos de Grand Folies: todo se ejecuta de verdad en ninuma-agente (mismo
 código que usa el panel), NINUMAPP solo hace de interfaz."""
 
-import functools
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -11,64 +10,35 @@ from pydantic import BaseModel
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.errores import manejar_error as _manejar_error
+from app.routers.estado_conexion import con_estado
 from app.services import panel_agente
-from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/pedidos-b2b", tags=["pedidos-b2b"])
-
-
-def _manejar_error(f):
-    # functools.wraps deja __wrapped__ apuntando a f -- FastAPI usa inspect.signature
-    # para leer los parámetros y Depends() de la ruta, y eso sigue esa cadena, así que
-    # necesita esto para no perder la firma real al envolver la función.
-    @functools.wraps(f)
-    async def envoltura(*args, **kwargs):
-        try:
-            return await f(*args, **kwargs)
-        except PanelAgenteError as e:
-            raise HTTPException(status_code=502, detail=str(e))
-
-    return envoltura
 
 
 @router.get("/clientes")
 async def clientes(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.clientes_profesionales()
-    return {
-        "clientes": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", clientes=lista)
 
 
 @router.get("/facturas-pendientes-cobro")
 async def facturas_pendientes_cobro(usuario: Usuario = Depends(usuario_actual)):
     datos, conectado = await panel_agente.facturas_pendientes_cobro_detalle()
-    return {
-        **datos,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", **datos)
 
 
 @router.get("/acumulado-mensual-itemizado")
 async def acumulado_mensual_itemizado(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.acumulado_mensual_itemizado()
-    return {
-        "grupos": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", grupos=lista)
 
 
 @router.get("/documentos-recientes")
 async def documentos_recientes(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.documentos_recientes()
-    return {
-        "documentos": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", documentos=lista)
 
 
 # ---------------------------------------------------------------------------
@@ -223,11 +193,7 @@ async def marcar_cobrado(body: NumeroBody, usuario: Usuario = Depends(usuario_ac
 @router.get("/grand-folies/pendientes")
 async def grand_folies_pendientes(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.grand_folies_pendientes()
-    return {
-        "pedidos": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", pedidos=lista)
 
 
 class LineaGF(BaseModel):
@@ -272,11 +238,7 @@ async def grand_folies_descartar(body: DescartarGFBody, usuario: Usuario = Depen
 @router.get("/b2b-carrito/pendientes")
 async def b2b_carrito_pendientes(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.b2b_carrito_pendientes()
-    return {
-        "pedidos": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", pedidos=lista)
 
 
 class LineaB2BCarrito(BaseModel):
@@ -321,11 +283,7 @@ async def b2b_carrito_descartar(body: DescartarB2BCarritoBody, usuario: Usuario 
 @router.get("/documentos")
 async def documentos(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.todos_los_documentos()
-    return {
-        "documentos": lista,
-        "conectado": conectado,
-        "aviso": None if conectado else "ninuma-agente todavía no está conectado en NINUMAPP.",
-    }
+    return con_estado(conectado, "ninuma-agente todavía no está conectado en NINUMAPP.", documentos=lista)
 
 
 @router.get("/documento")

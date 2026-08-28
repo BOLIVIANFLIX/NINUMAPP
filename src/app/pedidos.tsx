@@ -1,6 +1,5 @@
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,6 +16,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BotonPrimario } from '@/components/boton-primario';
 import { ListCard, ListRow, Pill, SectionLabel, Segmented, type PillColor } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useResetAlSalir } from '@/hooks/use-reset-al-salir';
 import { useTheme } from '@/hooks/use-theme';
 import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
@@ -62,7 +62,6 @@ type Sub = 'Profesionales' | 'Particulares';
 export default function PedidosScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const navigation = useNavigation();
   const [vista, setVista] = useState<Vista>({ tipo: 'principal' });
   const [sub, setSub] = useState<Sub>('Profesionales');
   const [cerrandoMes, setCerrandoMes] = useState(false);
@@ -72,17 +71,11 @@ export default function PedidosScreen() {
     setSub('Profesionales');
   }
 
-  useFocusEffect(useCallback(() => volverAlPrincipal, []));
+  useResetAlSalir(volverAlPrincipal);
 
   // Botón/gesto de "atrás" de Android -- vuelve a la pantalla principal de Pedidos
   // en vez de salir de la app (bug real: Ariadna, 2026-08-23).
   useVolverAtras(vista.tipo === 'principal', volverAlPrincipal);
-
-  // Volver a tocar el icono de Pedidos ya activo también vuelve a la pantalla
-  // principal (useFocusEffect no cubre este caso, no hay blur/focus de por medio).
-  useEffect(() => {
-    return navigation.addListener('tabPress' as never, volverAlPrincipal);
-  }, [navigation]);
 
   const profesionalesQuery = useQuery({ queryKey: ['clientes-profesionales'], queryFn: obtenerClientesProfesionales });
   const acumuladoItemizadoQuery = useQuery({ queryKey: ['acumulado-mensual-itemizado'], queryFn: obtenerAcumuladoMensualItemizado, enabled: sub === 'Profesionales' });

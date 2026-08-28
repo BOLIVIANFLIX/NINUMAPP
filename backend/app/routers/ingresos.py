@@ -1,28 +1,15 @@
 """Ingresos y gastos -- réplica de /panel/ingresos, mes navegable + gastos fijos
 manuales, mismas funciones de ninuma-agente vía panel_agente."""
 
-import functools
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.models import Usuario
 from app.routers.auth import usuario_actual
+from app.routers.errores import manejar_error as _manejar_error
 from app.services import panel_agente
-from app.services.panel_agente import PanelAgenteError
 
 router = APIRouter(prefix="/api/ingresos", tags=["ingresos"])
-
-
-def _manejar_error(f):
-    @functools.wraps(f)
-    async def envoltura(*args, **kwargs):
-        try:
-            return await f(*args, **kwargs)
-        except PanelAgenteError as e:
-            raise HTTPException(status_code=502, detail=str(e))
-
-    return envoltura
 
 
 @router.get("")
