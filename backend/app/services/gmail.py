@@ -23,6 +23,7 @@ Flujo de autorización (una sola vez, a mano):
    falta repetir nada de esto salvo que se revoque el acceso."""
 
 import asyncio
+import base64
 import html
 from typing import TypedDict
 
@@ -40,6 +41,81 @@ class CorreoPendiente(TypedDict):
     fecha: str
 
 
+# Mismo texto que TIPO_LABEL en WBD/src/pages/api/contacto-confirmacion.ts -- el
+# cuerpo de un aviso de Formspree del formulario de contacto (ver
+# _parsear_formulario_contacto) trae el campo "tipo" tal cual, sin traducir.
+_TIPO_LABEL = {
+    "encargo": "Encargo",
+    "b2b": "Colaboración B2B",
+    "edicion": "Consulta sobre edición especial",
+    "informacion": "Consulta general",
+}
+
+_CAMPOS_FORMULARIO_CONTACTO = {"nombre", "email", "telefono", "tipo", "fecha", "personas", "descripcion", "origen", "rgpd"}
+
+
+def _parsear_formulario_contacto(cuerpo: str) -> dict[str, str] | None:
+    """El cuerpo en texto plano de un aviso de Formspree del formulario de contacto
+    (ver ContactoForm.astro) trae cada campo como una línea "etiqueta:" seguida de su
+    valor en las líneas siguientes, en este orden exacto (comprobado con un correo
+    real, 2026-08-28) -- "nombre:\\nJUAN\\n\\n\\nemail:\\n...". Devuelve None si el
+    cuerpo no tiene esta forma (cualquier otro correo -- newsletters, proveedores,
+    clientes escribiendo directo -- se queda con el snippet de Gmail de siempre, sin
+    tocar)."""
+    clave_actual: str | None = None
+    valor_actual: list[str] = []
+    campos: dict[str, str] = {}
+    for linea in cuerpo.splitlines():
+        posible_clave = linea.strip().rstrip(":").lower()
+        if linea.strip().endswith(":") and posible_clave in _CAMPOS_FORMULARIO_CONTACTO:
+            if clave_actual:
+                campos[clave_actual] = "\n".join(valor_actual).strip()
+            clave_actual, valor_actual = posible_clave, []
+        elif clave_actual:
+            valor_actual.append(linea)
+    if clave_actual:
+        campos[clave_actual] = "\n".join(valor_actual).strip()
+    return campos if "nombre" in campos and "tipo" in campos else None
+
+
+def _texto_plano(parte: dict) -> str | None:
+    """Busca la parte text/plain de un mensaje MIME (puede venir anidada dentro de
+    multipart/alternative) y la decodifica de base64url."""
+    if parte.get("mimeType") == "text/plain" and parte.get("body", {}).get("data"):
+        b64 = parte["body"]["data"]
+        return base64.urlsafe_b64decode(b64 + "=" * (-len(b64) % 4)).decode("utf-8", errors="replace")
+    for sub in parte.get("parts") or []:
+        texto = _texto_plano(sub)
+        if texto is not None:
+            return texto
+    return None
+
+
+async def _resumen_formspree(cliente: httpx.AsyncClient, cabeceras: dict, id_: str) -> tuple[str, str] | None:
+    """Para un aviso de Formspree del formulario de contacto -- Ariadna, 2026-08-28:
+    "el texto que se puede ver en la app no es nada útil" (viendo "Formspree
+    <noreply@formspree.io> · You've received a new form submission...", el propio
+    snippet de Gmail, generado del principio del cuerpo antes de llegar a los campos
+    reales). Pide el cuerpo completo (una llamada aparte -- solo para Formspree, no
+    para las otras ~20 llamadas de correos_pendientes, que no lo necesitan) y lo
+    traduce al mismo "{categoría} — {nombre}" / mensaje real que ya usa la app en
+    Avisos (ver tituloConCategoria/mensajeReal en avisos-pendientes.tsx)."""
+    detalle = await cliente.get(
+        f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{id_}",
+        headers=cabeceras,
+        params={"format": "full"},
+    )
+    detalle.raise_for_status()
+    cuerpo = _texto_plano(detalle.json().get("payload", {}))
+    if cuerpo is None:
+        return None
+    campos = _parsear_formulario_contacto(cuerpo)
+    if campos is None:
+        return None
+    etiqueta = _TIPO_LABEL.get(campos.get("tipo", ""), "Contacto")
+    return f"{etiqueta} — {campos.get('nombre') or 'Sin nombre'}", campos.get("descripcion") or ""
+
+
 async def _detalle_correo(cliente: httpx.AsyncClient, cabeceras: dict, id_: str) -> CorreoPendiente:
     detalle = await cliente.get(
         f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{id_}",
@@ -49,13 +125,19 @@ async def _detalle_correo(cliente: httpx.AsyncClient, cabeceras: dict, id_: str)
     detalle.raise_for_status()
     datos = detalle.json()
     cabeceras_msg = {h["name"]: h["value"] for h in datos.get("payload", {}).get("headers", [])}
-    return CorreoPendiente(
-        id=id_,
-        de=cabeceras_msg.get("From", "?"),
-        asunto=cabeceras_msg.get("Subject", "(sin asunto)"),
-        resumen=html.unescape(datos.get("snippet", "")),
-        fecha=cabeceras_msg.get("Date", ""),
-    )
+    de = cabeceras_msg.get("From", "?")
+    asunto = cabeceras_msg.get("Subject", "(sin asunto)")
+    resumen = html.unescape(datos.get("snippet", ""))
+
+    if "formspree.io" in de.lower():
+        try:
+            resumen_formspree = await _resumen_formspree(cliente, cabeceras, id_)
+        except httpx.HTTPError:
+            resumen_formspree = None
+        if resumen_formspree:
+            asunto, resumen = resumen_formspree
+
+    return CorreoPendiente(id=id_, de=de, asunto=asunto, resumen=resumen, fecha=cabeceras_msg.get("Date", ""))
 
 
 async def correos_pendientes(limite: int = 20) -> tuple[list[CorreoPendiente], bool]:

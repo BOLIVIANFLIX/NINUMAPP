@@ -252,15 +252,24 @@ export default function AvisosScreen() {
             <>
               <SectionLabel>Correos sin leer</SectionLabel>
               <ListCard>
-                {correosGmail.data.correos.map((c, i) => (
-                  <ListRow
-                    key={c.id}
-                    last={i === correosGmail.data!.correos.length - 1}
-                    left={<NotifIcono icono="📧" color={theme.info} bg={theme.infoSoft} />}
-                    title={c.asunto || '(sin asunto)'}
-                    subtitle={`${c.de}${c.resumen ? ` · ${c.resumen}` : ''}`}
-                  />
-                ))}
+                {correosGmail.data.correos.map((c, i) => {
+                  // Un aviso de Formspree del formulario de contacto ya llega traducido
+                  // a "Categoría — Nombre" / mensaje real (ver gmail.py,
+                  // _resumen_formspree) -- anteponer el remitente ("Formspree
+                  // <noreply@...>") ahí no aporta nada, a diferencia de un correo
+                  // normal donde SÍ hace falta saber quién escribe.
+                  const esFormulario = c.de.toLowerCase().includes('formspree.io');
+                  return (
+                    <ListRow
+                      key={c.id}
+                      last={i === correosGmail.data!.correos.length - 1}
+                      left={<NotifIcono icono="📧" color={theme.info} bg={theme.infoSoft} />}
+                      title={c.asunto || '(sin asunto)'}
+                      subtitle={esFormulario ? c.resumen : `${c.de}${c.resumen ? ` · ${c.resumen}` : ''}`}
+                      multilinea
+                    />
+                  );
+                })}
               </ListCard>
             </>
           )}
