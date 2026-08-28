@@ -420,6 +420,10 @@ export interface StockGrocy {
   producto_id: number;
   producto: string;
   cantidad: number;
+  // Unidad de stock del producto en Grocy (p.ej. "Kilos", "Paquetes", "Unidades"),
+  // ya en singular/plural según cantidad -- null si el producto no tiene una
+  // unidad de stock configurada en Grocy.
+  unidad: string | null;
 }
 
 export interface RespuestaStockInventario extends RespuestaConAviso<StockGrocy> {

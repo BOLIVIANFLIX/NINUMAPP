@@ -249,7 +249,12 @@ export default function ObradorScreen() {
                       last={i === stock.data!.stock.length - 1}
                       title={s.producto}
                       onPress={() => abrirEdicionStock(s)}
-                      right={<ThemedText type="smallBold">{unDecimalMaximo(s.cantidad)}</ThemedText>}
+                      right={
+                        <ThemedText type="smallBold">
+                          {unDecimalMaximo(s.cantidad)}
+                          {s.unidad ? ` ${s.unidad}` : ''}
+                        </ThemedText>
+                      }
                     />
                   ))}
                 </ListCard>
@@ -301,7 +306,7 @@ export default function ObradorScreen() {
           <View style={[styles.stockModalCaja, { backgroundColor: theme.backgroundElement }]}>
             <ThemedText type="subtitle">{productoEditando?.producto}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.notaStock}>
-              Cantidad real en stock -- se corrige directamente en Grocy.
+              Cantidad real en stock{productoEditando?.unidad ? ` (en ${productoEditando.unidad.toLowerCase()})` : ''} -- se corrige directamente en Grocy.
             </ThemedText>
             <TextInput
               value={nuevaCantidad}
