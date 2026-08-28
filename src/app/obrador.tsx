@@ -31,6 +31,14 @@ import { tokenStore } from '@/lib/token-store';
 
 const fechaHora = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+// Grocy devuelve la cantidad con toda la precisión interna (p.ej. 2.456789) --
+// Ariadna, 2026-08-28: "en inventario de la app los productos máximo un decimal".
+// Redondea a 1 decimal y quita los ceros sobrantes (2.5 se queda en 2.5, 5.0 se
+// queda en 5) en vez de forzar siempre una cifra decimal.
+function unDecimalMaximo(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
 type Vista = 'obrador' | 'escanear';
 type Sub = 'Sensores' | 'Inventario';
 
@@ -47,7 +55,7 @@ export default function ObradorScreen() {
 
   function abrirEdicionStock(item: StockGrocy) {
     setProductoEditando(item);
-    setNuevaCantidad(String(item.cantidad));
+    setNuevaCantidad(String(unDecimalMaximo(item.cantidad)));
     setErrorStock(null);
   }
 
@@ -248,7 +256,7 @@ export default function ObradorScreen() {
                       last={i === stock.data!.stock.length - 1}
                       title={s.producto}
                       onPress={() => abrirEdicionStock(s)}
-                      right={<ThemedText type="smallBold">{s.cantidad}</ThemedText>}
+                      right={<ThemedText type="smallBold">{unDecimalMaximo(s.cantidad)}</ThemedText>}
                     />
                   ))}
                 </ListCard>
