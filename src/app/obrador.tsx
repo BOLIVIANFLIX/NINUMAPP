@@ -27,17 +27,10 @@ import {
   type SensorHA,
   type StockGrocy,
 } from '@/lib/api';
+import { unDecimalMaximo } from '@/lib/formato';
 import { tokenStore } from '@/lib/token-store';
 
 const fechaHora = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-
-// Grocy devuelve la cantidad con toda la precisión interna (p.ej. 2.456789) --
-// Ariadna, 2026-08-28: "en inventario de la app los productos máximo un decimal".
-// Redondea a 1 decimal y quita los ceros sobrantes (2.5 se queda en 2.5, 5.0 se
-// queda en 5) en vez de forzar siempre una cifra decimal.
-function unDecimalMaximo(n: number): number {
-  return Math.round(n * 10) / 10;
-}
 
 type Vista = 'obrador' | 'escanear';
 type Sub = 'Sensores' | 'Inventario';
