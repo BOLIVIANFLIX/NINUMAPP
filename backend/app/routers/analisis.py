@@ -1,7 +1,7 @@
 """Análisis financiero -- réplica de /panel/analisis (Resumen/Productos/Recetas/Precios),
 mismas funciones de ninuma-agente vía panel_agente, nunca reimplementadas aquí."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from app.models import Usuario
@@ -77,6 +77,22 @@ async def modelo_130(anio: int, trimestre: int, usuario: Usuario = Depends(usuar
     if datos is None:
         raise HTTPException(status_code=502, detail="No se ha podido calcular el modelo 130 del trimestre.")
     return datos
+
+
+@router.get("/copia-papel/descargar")
+async def copia_papel_descargar(usuario: Usuario = Depends(usuario_actual)):
+    """Última copia en papel semanal guardada (ver
+    ninuma-agente/main.enviar_resumen_papel_semanal_si_toca) -- Ariadna, 2026-08-29:
+    dejar de depender de Telegram para esto, descargable desde la app para imprimir."""
+    resultado = await panel_agente.copia_papel_descargar()
+    if resultado is None:
+        raise HTTPException(status_code=502, detail="No se ha podido descargar la copia en papel.")
+    contenido, content_type = resultado
+    return Response(
+        content=contenido,
+        media_type=content_type,
+        headers={"Content-Disposition": 'attachment; filename="copia_papel_semanal.pdf"'},
+    )
 
 
 @router.get("/trimestres-recientes")

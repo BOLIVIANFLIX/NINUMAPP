@@ -16,7 +16,6 @@ dejando los avisos de Telegram por push. Tres caminos:
 import hmac
 from datetime import datetime
 
-import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select, update
@@ -26,10 +25,9 @@ from app.config import settings
 from app.database import get_db
 from app.models import AvisoHistorial, DispositivoPush, PreferenciaNotificacion, Usuario
 from app.routers.auth import usuario_actual
+from app.services.push import enviar_interno as _enviar_interno_nucleo
 
 router = APIRouter(prefix="/api/notificaciones", tags=["notificaciones"])
-
-_EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
 # Catálogo completo de tipos de aviso -- clave usada por /enviar y por /preferencias,
 # con la etiqueta legible que pinta la app y si nace activado o no. Los tres primeros
@@ -48,6 +46,8 @@ _DEFAULTS: dict[str, tuple[str, bool]] = {
     "subida_precios": ("Subida de precios de ingredientes", False),
     "alarma_ha": ("Alarma de Home Assistant", False),
     "boletin_suscripcion": ("Nueva suscripción al boletín", True),
+    "error_sistema": ("Error en una tarea automática (conexión, etc.)", True),
+    "seguridad": ("Alertas de seguridad del login (bloqueos, robo de sesión)", True),
 }
 
 
@@ -91,13 +91,6 @@ def _verificar_secreto(x_notificaciones_secret: str | None) -> None:
         raise HTTPException(status_code=401, detail="Secreto inválido.")
 
 
-async def _tipo_activo(db: AsyncSession, tipo: str) -> bool:
-    fila = (await db.execute(select(PreferenciaNotificacion).where(PreferenciaNotificacion.tipo == tipo))).scalar_one_or_none()
-    if fila is not None:
-        return fila.activo
-    return _DEFAULTS.get(tipo, ("", True))[1]
-
-
 @router.post("/enviar")
 async def enviar(
     body: EnviarBody,
@@ -105,30 +98,8 @@ async def enviar(
     x_notificaciones_secret: str | None = Header(default=None),
 ):
     _verificar_secreto(x_notificaciones_secret)
-
-    # Queda constancia siempre, aunque el tipo esté desactivado o no haya ningún
-    # dispositivo con push registrado -- el push es un canal más, no el único sitio
-    # donde debe verse que esto ha pasado (ver AvisoHistorial en app/models.py).
-    db.add(AvisoHistorial(tipo=body.tipo or "otro", titulo=body.titulo, cuerpo=body.cuerpo))
-    await db.commit()
-
-    if body.tipo and not await _tipo_activo(db, body.tipo):
-        return {"ok": True, "enviados": 0, "omitido_por_preferencia": True}
-
-    tokens = [d.expo_push_token for d in (await db.execute(select(DispositivoPush))).scalars().all()]
-    if not tokens:
-        return {"ok": True, "enviados": 0}
-
-    mensajes = [{"to": t, "title": body.titulo, "body": body.cuerpo, "data": body.datos or {}} for t in tokens]
-    try:
-        async with httpx.AsyncClient(timeout=10) as cliente:
-            await cliente.post(_EXPO_PUSH_URL, json=mensajes, headers={"Content-Type": "application/json"})
-    except httpx.HTTPError:
-        # No debe romper al llamador (ninuma-agente/WBD) -- el aviso original por
-        # Telegram, si lo hay, ya se mandó; esto es un canal adicional, no el único.
-        return {"ok": False, "enviados": 0}
-
-    return {"ok": True, "enviados": len(tokens)}
+    default_activo = _DEFAULTS.get(body.tipo, ("", True))[1] if body.tipo else True
+    return await _enviar_interno_nucleo(db, body.titulo, body.cuerpo, body.datos, body.tipo, default_activo)
 
 
 class AvisoHistorialOut(BaseModel):

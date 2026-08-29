@@ -52,3 +52,20 @@ async def eliminar_gasto(body: GastoIdBody, usuario: Usuario = Depends(usuario_a
 @_manejar_error
 async def marcar_pagado(body: GastoIdBody, usuario: Usuario = Depends(usuario_actual)):
     return await panel_agente.marcar_gasto_pagado(body.id)
+
+
+class CrearIngresoBody(BaseModel):
+    canal: str
+    importe: float
+    concepto: str
+    fecha: str
+    forma_pago: str
+    iva_porcentaje: float = 10.0
+
+
+@router.post("/crear")
+@_manejar_error
+async def crear_ingreso(body: CrearIngresoBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.crear_ingreso(
+        body.canal, body.importe, body.concepto, body.fecha, body.forma_pago, body.iva_porcentaje
+    )

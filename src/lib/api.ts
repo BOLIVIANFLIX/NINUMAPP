@@ -1157,6 +1157,10 @@ export function urlTicketsPeriodo(desde: string, hasta: string): string {
   return `${API_URL}/api/inventario/tickets-periodo?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`;
 }
 
+export function urlCopiaPapel(): string {
+  return `${API_URL}/api/analisis/copia-papel/descargar`;
+}
+
 // --- Ingresos y gastos -----------------------------------------------------------
 
 export interface DocumentoDelMes {
@@ -1216,6 +1220,23 @@ export async function eliminarGasto(id: number): Promise<void> {
 
 export async function marcarGastoPagado(id: number): Promise<void> {
   await mutar('/api/ingresos/gastos/marcar-pagado', 'post', { id });
+}
+
+export interface CrearIngresoBody {
+  canal: 'b2b' | 'particular';
+  importe: number;
+  concepto: string;
+  fecha: string;
+  forma_pago: 'efectivo' | 'transferencia';
+  iva_porcentaje: number;
+}
+
+export async function crearIngreso(body: CrearIngresoBody): Promise<{ numero: string }> {
+  const resp = await api.post('/api/ingresos/crear', body);
+  // Mismo motivo que confirmarGrandFolies -- ninuma-agente responde 200 con
+  // {ok:false, error} si faltan datos, en vez de un HTTP de error.
+  if (resp.data?.ok === false) throw new Error(resp.data.error || 'No se ha podido apuntar el ingreso.');
+  return resp.data;
 }
 
 // --- Documentos históricos + ficha de cliente -------------------------------------

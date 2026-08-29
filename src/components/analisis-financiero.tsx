@@ -1,6 +1,8 @@
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,7 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha, KpiCard, KpiRow, ListCard, ListRow, SectionLabel, Segmented } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { descargarYCompartir } from '@/lib/descargas';
+import { descargarACache } from '@/lib/descargas';
 import {
   guardarConfigCostes,
   guardarTiempoReceta,
@@ -20,6 +22,7 @@ import {
   obtenerIvaTrimestre,
   obtenerModelo130,
   obtenerTrimestresRecientes,
+  urlCopiaPapel,
   urlTicketsPeriodo,
   type PeriodoAnalisis,
   type RecetaCoste,
@@ -299,6 +302,7 @@ function TabImpuestos() {
   const theme = useTheme();
   const [{ anio, trimestre }, setPeriodo] = useState(trimestreActual());
   const [descargando, setDescargando] = useState(false);
+  const [descargandoPapel, setDescargandoPapel] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ['analisis', 'iva-trimestre', anio, trimestre],
     queryFn: () => obtenerIvaTrimestre(anio, trimestre),
@@ -321,15 +325,55 @@ function TabImpuestos() {
     setPeriodo({ anio: a, trimestre: t });
   }
 
+  // Ariadna, 2026-08-29: "no descarga, lo que hace es compartir" -- mismo fallo real
+  // que ya se corrigió en documento-detalle.tsx (2026-08-23) y albaran-confirmar-
+  // base.tsx (hoy): descargarYCompartir siempre comparte, nunca guarda de verdad en
+  // el teléfono. Mismo Storage Access Framework para una descarga real en Android.
   async function descargarTickets() {
     if (!data) return;
     setDescargando(true);
     try {
-      await descargarYCompartir(urlTicketsPeriodo(data.desde, data.hasta), `tickets-${data.anio}-T${data.trimestre}.zip`);
+      const nombreArchivo = `tickets-${data.anio}-T${data.trimestre}.zip`;
+      const archivo = await descargarACache(urlTicketsPeriodo(data.desde, data.hasta), nombreArchivo);
+      if (Platform.OS === 'android') {
+        const permiso = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permiso.granted) return;
+        const base64 = await StorageAccessFramework.readAsStringAsync(archivo.uri, { encoding: 'base64' });
+        const destinoUri = await StorageAccessFramework.createFileAsync(permiso.directoryUri, nombreArchivo.replace(/\.zip$/, ''), 'application/zip');
+        await StorageAccessFramework.writeAsStringAsync(destinoUri, base64, { encoding: 'base64' });
+        Alert.alert('Descargado', `${nombreArchivo} guardado correctamente.`);
+      } else if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(archivo.uri);
+      }
     } catch {
       Alert.alert('No se ha podido descargar', 'Inténtalo de nuevo en unos segundos.');
     } finally {
       setDescargando(false);
+    }
+  }
+
+  // Ariadna, 2026-08-29: la copia en papel semanal deja de mandarse por Telegram --
+  // se guarda sola cada semana y se descarga desde aquí para imprimirla, misma
+  // descarga real que descargarTickets.
+  async function descargarCopiaPapel() {
+    setDescargandoPapel(true);
+    try {
+      const nombreArchivo = 'copia_papel_semanal.pdf';
+      const archivo = await descargarACache(urlCopiaPapel(), nombreArchivo);
+      if (Platform.OS === 'android') {
+        const permiso = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permiso.granted) return;
+        const base64 = await StorageAccessFramework.readAsStringAsync(archivo.uri, { encoding: 'base64' });
+        const destinoUri = await StorageAccessFramework.createFileAsync(permiso.directoryUri, nombreArchivo.replace(/\.pdf$/, ''), 'application/pdf');
+        await StorageAccessFramework.writeAsStringAsync(destinoUri, base64, { encoding: 'base64' });
+        Alert.alert('Descargado', `${nombreArchivo} guardado correctamente.`);
+      } else if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(archivo.uri);
+      }
+    } catch {
+      Alert.alert('No se ha podido descargar', 'Puede que todavía no se haya generado ninguna esta semana.');
+    } finally {
+      setDescargandoPapel(false);
     }
   }
 
@@ -407,6 +451,13 @@ function TabImpuestos() {
             disabled={descargando}
             style={[styles.botonDescargarTickets, { backgroundColor: theme.backgroundElement, opacity: descargando ? 0.6 : 1 }]}>
             <ThemedText type="smallBold">{descargando ? 'Preparando…' : '📎 Descargar tickets del trimestre'}</ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={descargarCopiaPapel}
+            disabled={descargandoPapel}
+            style={[styles.botonDescargarTickets, { backgroundColor: theme.backgroundElement, opacity: descargandoPapel ? 0.6 : 1 }]}>
+            <ThemedText type="smallBold">{descargandoPapel ? 'Preparando…' : '🖨️ Descargar copia en papel semanal'}</ThemedText>
           </Pressable>
 
           <SectionLabel>Comparativa de trimestres</SectionLabel>

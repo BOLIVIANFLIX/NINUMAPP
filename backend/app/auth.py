@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import IntentoFallido, LoginPendiente, RefreshToken, Usuario
-from app.services.panel_agente import notificar_seguridad
+from app.services.push import enviar_interno as _enviar_push_seguridad
 
 _CLAVE_GLOBAL = "__global__"
 LOGIN_PENDIENTE_MINUTOS = 5
@@ -116,7 +116,9 @@ async def refrescar_token(db: AsyncSession, refresh_token: str, dispositivo: str
     if fila.revocado or (fila.usado_en is not None):
         await db.execute(update(RefreshToken).where(RefreshToken.usuario_id == fila.usuario_id).values(revocado=True))
         await db.commit()
-        await notificar_seguridad("posible robo de sesión: se reutilizó un refresh token ya usado, se han cerrado todas las sesiones")
+        await _enviar_push_seguridad(
+            db, "🔒 Seguridad NINUMAPP", "Posible robo de sesión: se reutilizó un refresh token ya usado, se han cerrado todas las sesiones.", tipo="seguridad"
+        )
         return {"ok": False, "motivo": "token_reutilizado_revocado_todo"}
 
     if fila.expira_en < _ahora():
@@ -158,14 +160,16 @@ async def bloqueado(db: AsyncSession, usuario: str) -> bool:
 
 async def registrar_intento_fallido(db: AsyncSession, usuario: str) -> None:
     """Si este intento es el que hace saltar el bloqueo (por usuario o global), se
-    avisa por Telegram -- una vez por bloqueo, no en cada intento mientras sigue
-    bloqueado (bloqueado() sigue devolviendo True los siguientes N minutos)."""
+    avisa por push directo a la app (ver app/services/push.py -- Ariadna, 2026-08-29,
+    dejó de depender del bot de Telegram para esto) -- una vez por bloqueo, no en cada
+    intento mientras sigue bloqueado (bloqueado() sigue devolviendo True los
+    siguientes N minutos)."""
     ya_bloqueado_antes = await bloqueado(db, usuario)
     db.add(IntentoFallido(clave=usuario.strip().lower()))
     db.add(IntentoFallido(clave=_CLAVE_GLOBAL))
     await db.commit()
     if not ya_bloqueado_antes and await bloqueado(db, usuario):
-        await notificar_seguridad(f"acceso bloqueado por varios intentos fallidos ({usuario})")
+        await _enviar_push_seguridad(db, "🔒 Seguridad NINUMAPP", f"Acceso bloqueado por varios intentos fallidos ({usuario}).", tipo="seguridad")
 
 
 # ---------- flujo de login ----------

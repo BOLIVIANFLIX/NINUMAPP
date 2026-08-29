@@ -10,7 +10,7 @@ import { Dot, KpiCard, KpiRow, ListCard, ListRow } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useVolverAtras } from '@/hooks/use-volver-atras';
-import { crearGasto, eliminarGasto, marcarGastoPagado, mensajeError, obtenerIngresosDelMes } from '@/lib/api';
+import { crearGasto, crearIngreso, eliminarGasto, marcarGastoPagado, mensajeError, obtenerIngresosDelMes } from '@/lib/api';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -132,6 +132,14 @@ export function IngresosGastos({ onVolver }: { onVolver: () => void }) {
                   ))}
                 </ListCard>
               )}
+
+              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.seccion}>
+                AÑADIR INGRESO A MANO
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.nota}>
+                Para un cobro que no pasa por Stripe ni por un pedido (efectivo, transferencia directa...) -- se apunta igual que los demás, ya cobrado.
+              </ThemedText>
+              <FormularioIngreso onCreado={invalidar} />
 
               <KpiRow>
                 <KpiCard label="Materia prima" value={eur.format(data.total_materia_prima)} />
@@ -291,6 +299,111 @@ function FormularioGasto({ mes, mesActual, onCreado }: { mes: string; mesActual:
       </View>
       <Pressable onPress={guardar} disabled={guardando} style={[styles.botonGuardar, { backgroundColor: theme.accent }]}>
         {guardando ? <ActivityIndicator color="#fff" /> : <ThemedText style={{ color: '#fff', fontWeight: '700' }}>Añadir gasto</ThemedText>}
+      </Pressable>
+    </View>
+  );
+}
+
+const CANALES_INGRESO: [string, string][] = [['particular', '🧍 Particular'], ['b2b', '🏢 B2B']];
+const FORMAS_PAGO_INGRESO: [string, string][] = [['efectivo', '💵 Efectivo'], ['transferencia', '🏦 Transferencia']];
+
+function FormularioIngreso({ onCreado }: { onCreado: () => void }) {
+  const theme = useTheme();
+  const [canal, setCanal] = useState<'particular' | 'b2b'>('particular');
+  const [importe, setImporte] = useState('');
+  const [concepto, setConcepto] = useState('');
+  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [formaPago, setFormaPago] = useState<'efectivo' | 'transferencia'>('efectivo');
+  const [ivaPorcentaje, setIvaPorcentaje] = useState('10');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function guardar() {
+    const valor = parseFloat(importe.replace(',', '.'));
+    const iva = parseFloat(ivaPorcentaje.replace(',', '.'));
+    if (Number.isNaN(valor) || valor <= 0 || !concepto.trim() || !fecha) return;
+    if (Number.isNaN(iva) || iva < 0 || iva > 100) {
+      setError('El % de IVA tiene que ser un número entre 0 y 100.');
+      return;
+    }
+    setGuardando(true);
+    setError(null);
+    try {
+      await crearIngreso({ canal, importe: valor, concepto: concepto.trim(), fecha, forma_pago: formaPago, iva_porcentaje: iva });
+      setImporte(''); setConcepto(''); setIvaPorcentaje('10');
+      onCreado();
+    } catch (err) {
+      setError(mensajeError(err));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <View style={[styles.formCard, { backgroundColor: theme.backgroundElement }]}>
+      <ThemedText type="small" themeColor="textSecondary">Mundo</ThemedText>
+      <View style={styles.chipsCategoria}>
+        {CANALES_INGRESO.map(([valor, etiqueta]) => (
+          <Pressable
+            key={valor}
+            onPress={() => setCanal(valor as 'particular' | 'b2b')}
+            style={[styles.chip, { borderColor: canal === valor ? theme.accent : theme.separator }]}>
+            <ThemedText type="small" style={{ color: canal === valor ? theme.accent : theme.textSecondary }}>{etiqueta}</ThemedText>
+          </Pressable>
+        ))}
+      </View>
+
+      <TextInput
+        value={concepto}
+        onChangeText={setConcepto}
+        placeholder="Concepto o nombre del cliente"
+        placeholderTextColor={theme.textSecondary}
+        style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+      />
+      <View style={styles.filaCampos}>
+        <TextInput
+          value={importe}
+          onChangeText={setImporte}
+          placeholder="Importe € (con IVA)"
+          keyboardType="decimal-pad"
+          placeholderTextColor={theme.textSecondary}
+          style={[styles.input, { flex: 1, color: theme.text, borderColor: theme.separator }]}
+        />
+        <TextInput
+          value={fecha}
+          onChangeText={setFecha}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={theme.textSecondary}
+          style={[styles.input, { flex: 1, color: theme.text, borderColor: theme.separator }]}
+        />
+      </View>
+
+      <ThemedText type="small" themeColor="textSecondary">% de IVA (10 por defecto -- cámbialo si este ingreso no es al tipo habitual)</ThemedText>
+      <TextInput
+        value={ivaPorcentaje}
+        onChangeText={setIvaPorcentaje}
+        placeholder="10"
+        keyboardType="decimal-pad"
+        placeholderTextColor={theme.textSecondary}
+        style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+      />
+
+      <ThemedText type="small" themeColor="textSecondary">Forma de pago</ThemedText>
+      <View style={styles.chipsCategoria}>
+        {FORMAS_PAGO_INGRESO.map(([valor, etiqueta]) => (
+          <Pressable
+            key={valor}
+            onPress={() => setFormaPago(valor as 'efectivo' | 'transferencia')}
+            style={[styles.chip, { borderColor: formaPago === valor ? theme.accent : theme.separator }]}>
+            <ThemedText type="small" style={{ color: formaPago === valor ? theme.accent : theme.textSecondary }}>{etiqueta}</ThemedText>
+          </Pressable>
+        ))}
+      </View>
+
+      {error && <ThemedText type="small" themeColor="danger">{error}</ThemedText>}
+
+      <Pressable onPress={guardar} disabled={guardando} style={[styles.botonGuardar, { backgroundColor: theme.accent }]}>
+        {guardando ? <ActivityIndicator color="#fff" /> : <ThemedText style={{ color: '#fff', fontWeight: '700' }}>Añadir ingreso</ThemedText>}
       </Pressable>
     </View>
   );

@@ -136,17 +136,6 @@ async def _post(ruta: str, cuerpo: dict[str, Any]) -> dict | None:
         raise PanelAgenteError("Respuesta inesperada de ninuma-agente.") from e
 
 
-async def notificar_seguridad(mensaje: str) -> None:
-    """Aviso por Telegram (mismo bot que ya usa Ariadna a diario) para eventos de
-    seguridad reales del login de NINUMAPP -- bloqueo por fuerza bruta, robo de
-    sesión detectado. Best-effort a propósito: si ninuma-agente no responde, el
-    login/refresh no debe fallar por esto -- el error se traga aquí mismo."""
-    try:
-        await _post("/api/ninumapp/notificar-seguridad", {"mensaje": mensaje})
-    except PanelAgenteError:
-        pass
-
-
 async def resumen_financiero() -> tuple[ResumenFinanciero | None, bool]:
     datos = await _get("/api/ninumapp/resumen-financiero")
     return (datos, True) if datos is not None else (None, False)
@@ -440,6 +429,12 @@ async def inventario_tickets_periodo(desde: str, hasta: str) -> tuple[bytes, str
     )
 
 
+async def copia_papel_descargar() -> tuple[bytes, str] | None:
+    return await _get_binario(
+        "/api/ninumapp/copia-papel/descargar", {}, timeout=20, content_type_por_defecto="application/pdf",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Avisos -- correo sin resolver + pedidos de la web pendientes de revisar
 # ---------------------------------------------------------------------------
@@ -521,6 +516,13 @@ async def eliminar_gasto(id_: int) -> dict:
 
 async def marcar_gasto_pagado(id_: int) -> dict:
     return await _post("/api/ninumapp/ingresos/gastos/marcar-pagado", {"id": id_})
+
+
+async def crear_ingreso(canal: str, importe: float, concepto: str, fecha: str, forma_pago: str, iva_porcentaje: float = 10.0) -> dict:
+    return await _post(
+        "/api/ninumapp/ingresos/crear",
+        {"canal": canal, "importe": importe, "concepto": concepto, "fecha": fecha, "forma_pago": forma_pago, "iva_porcentaje": iva_porcentaje},
+    )
 
 
 # ---------------------------------------------------------------------------
