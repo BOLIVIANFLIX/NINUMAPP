@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BotonPrimario } from '@/components/boton-primario';
@@ -61,6 +61,12 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
       );
       setPaso('revisar');
     } catch (err) {
+      // Bug real, Ariadna 2026-08-29: "subir una foto ya hecha no hace nada, solo
+      // vuelve a la cámara" -- el `paso === 'camara'` de más abajo hace un return
+      // temprano que nunca llega a pintar el bloque de {error && ...}, así que un
+      // fallo de verdad (red, imagen ilegible, timeout) quedaba completamente
+      // silencioso. Un Alert sí se ve siempre, sea cual sea el paso.
+      Alert.alert('No se ha podido leer la foto', mensajeError(err));
       setError(mensajeError(err));
       setPaso('camara');
     }

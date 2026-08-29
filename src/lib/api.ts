@@ -332,11 +332,22 @@ export async function descartarSolicitud(id: string, tipoContacto?: string): Pro
   await mutar(`/api/avisos/solicitud/${id}/descartar`, 'post', tipoContacto ? { tipo_contacto: tipoContacto } : {});
 }
 
+const MIME_POR_EXTENSION: Record<string, string> = {
+  png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+};
+
 /** FormData con la foto -- se sube tal cual, sin fijar Content-Type a mano (axios/RN
- * ponen el boundary multipart correcto solas; fijarlo aquí lo rompería). */
+ * ponen el boundary multipart correcto solas; fijarlo aquí lo rompería). El tipo del
+ * propio campo `imagen` sí hay que declararlo bien: antes se ponía "image/jpeg" fijo
+ * pase lo que pase, pero una foto elegida de la galería (no hecha con la cámara) puede
+ * ser PNG/HEIC -- ninuma-agente reenvía este tipo tal cual a la IA de lectura como
+ * `media_type`, y un tipo declarado que no coincide con los bytes reales hace que la
+ * lectura falle (Ariadna, 2026-08-29: "subir una foto ya hecha no hace nada"). */
 function formDataDeFoto(uri: string): FormData {
+  const extension = uri.split('.').pop()?.toLowerCase().split('?')[0] ?? '';
+  const type = MIME_POR_EXTENSION[extension] ?? 'image/jpeg';
   const datos = new FormData();
-  datos.append('imagen', { uri, name: 'foto.jpg', type: 'image/jpeg' } as unknown as Blob);
+  datos.append('imagen', { uri, name: `foto.${extension || 'jpg'}`, type } as unknown as Blob);
   return datos;
 }
 
