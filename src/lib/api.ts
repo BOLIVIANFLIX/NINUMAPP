@@ -754,6 +754,14 @@ export async function marcarCobrado(numero: string): Promise<void> {
   await mutar('/api/pedidos-b2b/marcar-cobrado', 'post', { numero });
 }
 
+/** Marca un albarán B2B como entregado -- antes solo se podía hacer por Telegram
+ * (Ariadna, 2026-08-29: "añade marcar como entregado desde la app"). También
+ * actualiza el evento del calendario compartido a "entregado" (gris) del lado del
+ * servidor. */
+export async function marcarEntregado(numero: string): Promise<void> {
+  await mutar('/api/pedidos-b2b/marcar-entregado', 'post', { numero });
+}
+
 // --- Grand Folies ------------------------------------------------------------
 
 export interface LineaGrandFolies {
@@ -1239,6 +1247,7 @@ export interface DocumentoDetalle {
    * para esos. */
   facturado?: boolean;
   cobrado?: boolean;
+  entregado?: boolean;
 }
 
 export async function obtenerDocumentoDetalle(numero: string): Promise<DocumentoDetalle> {

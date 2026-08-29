@@ -246,6 +246,10 @@ async def marcar_facturado(numero: str) -> dict:
     return await _post("/api/ninumapp/pedidos/marcar-facturado", {"numero": numero})
 
 
+async def marcar_entregado(numero: str) -> dict:
+    return await _post("/api/ninumapp/pedidos/marcar-entregado", {"numero": numero})
+
+
 async def cerrar_cobro_mensual(cliente: str) -> dict:
     return await _post("/api/ninumapp/pedidos/cerrar-cobro-mensual", {"cliente": cliente})
 

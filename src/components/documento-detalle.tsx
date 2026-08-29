@@ -11,7 +11,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Ficha, FilaFicha } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { marcarCobrado, marcarFacturado, mensajeError, obtenerDocumentoDetalle, urlDocumentoArchivo } from '@/lib/api';
+import { marcarCobrado, marcarEntregado, marcarFacturado, mensajeError, obtenerDocumentoDetalle, urlDocumentoArchivo } from '@/lib/api';
 import { descargarACache as descargarUrlACache } from '@/lib/descargas';
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
@@ -54,7 +54,7 @@ export function DocumentoDetalle({
 }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const [accionEnCurso, setAccionEnCurso] = useState<'ver' | 'compartir' | 'pdf' | 'docx' | 'facturar' | 'cobrar' | null>(null);
+  const [accionEnCurso, setAccionEnCurso] = useState<'ver' | 'compartir' | 'pdf' | 'docx' | 'facturar' | 'cobrar' | 'entregar' | null>(null);
   const { data, isLoading, isFetching, refetch, error } = useQuery({ queryKey: ['documento', numero], queryFn: () => obtenerDocumentoDetalle(numero) });
 
   async function facturar() {
@@ -80,6 +80,24 @@ export function DocumentoDetalle({
       await queryClient.invalidateQueries({ queryKey: ['resumen'] });
     } catch (err) {
       Alert.alert('No se ha podido marcar cobrado', mensajeError(err));
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }
+
+  async function entregar() {
+    setAccionEnCurso('entregar');
+    try {
+      await marcarEntregado(numero);
+      await queryClient.invalidateQueries({ queryKey: ['documento', numero] });
+      // El calendario compartido también se actualiza a "entregado" (gris) del lado
+      // del servidor -- Inicio muestra la próxima entrega a partir de ese mismo
+      // calendario (ver calendario_client.proxima_entrega), así que también hay que
+      // refrescarla para que no siga señalando esta entrega como pendiente.
+      await queryClient.invalidateQueries({ queryKey: ['resumen'] });
+      await queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
+    } catch (err) {
+      Alert.alert('No se ha podido marcar entregado', mensajeError(err));
     } finally {
       setAccionEnCurso(null);
     }
@@ -191,12 +209,27 @@ export function DocumentoDetalle({
                   <FilaFicha etiqueta="Facturado" valor={data.facturado ? '✅ Sí' : 'Todavía no'} />
                 )}
                 {data.cobrado !== undefined && (
-                  <FilaFicha etiqueta="Cobrado" valor={data.cobrado ? '✅ Sí' : 'Todavía no'} last />
+                  <FilaFicha etiqueta="Cobrado" valor={data.cobrado ? '✅ Sí' : 'Todavía no'} />
+                )}
+                {data.entregado !== undefined && (
+                  <FilaFicha etiqueta="Entregado" valor={data.entregado ? '✅ Sí' : 'Todavía no'} last />
                 )}
               </Ficha>
 
-              {(data.facturado === false || data.cobrado === false) && (
+              {(data.facturado === false || data.cobrado === false || data.entregado === false) && (
                 <View style={styles.filaBotones}>
+                  {data.entregado === false && (
+                    <Pressable
+                      onPress={entregar}
+                      disabled={!!accionEnCurso}
+                      style={[styles.botonFacturar, { flex: 1, borderColor: theme.accent, opacity: accionEnCurso ? 0.5 : 1 }]}>
+                      {accionEnCurso === 'entregar' ? <ActivityIndicator color={theme.accent} /> : (
+                        <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                          📦 Marcar entregado
+                        </ThemedText>
+                      )}
+                    </Pressable>
+                  )}
                   {data.facturado === false && (
                     <Pressable
                       onPress={facturar}

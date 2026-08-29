@@ -173,6 +173,12 @@ async def marcar_facturado(body: NumeroBody, usuario: Usuario = Depends(usuario_
     return await panel_agente.marcar_facturado(body.numero)
 
 
+@router.post("/marcar-entregado")
+@_manejar_error
+async def marcar_entregado(body: NumeroBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.marcar_entregado(body.numero)
+
+
 @router.post("/cerrar-cobro-mensual")
 @_manejar_error
 async def cerrar_cobro_mensual(body: ClienteBody, usuario: Usuario = Depends(usuario_actual)):
