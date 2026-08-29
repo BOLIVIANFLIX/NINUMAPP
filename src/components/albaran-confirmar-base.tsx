@@ -6,8 +6,10 @@
  * pagado", y la llamada real a confirmar/descartar -- eso se queda en cada wrapper,
  * todo lo demás vive aquí. Revisión de calidad de código, 2026-08-27. */
 
+import { StorageAccessFramework } from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BotonPrimario } from '@/components/boton-primario';
@@ -17,7 +19,12 @@ import { ListCard, SectionLabel } from '@/components/ui/panel';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { mensajeError, urlDescargarAlbaran, type FaltanteMateriaPrima, type ResultadoAlbaran } from '@/lib/api';
-import { descargarYCompartir } from '@/lib/descargas';
+import { descargarACache } from '@/lib/descargas';
+
+const MIME: Record<'docx' | 'pdf', string> = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pdf: 'application/pdf',
+};
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
@@ -142,9 +149,27 @@ export function AlbaranConfirmarBase<L extends LineaConfirmable>({
     ]);
   }
 
+  // Ariadna, 2026-08-29: "el albarán se genera pero no descarga, lo que hace es la
+  // opción de enviar" -- descargarYCompartir (lib/descargas.ts) siempre comparte, no
+  // guarda nada de verdad en el teléfono. documento-detalle.tsx ya se corrigió para
+  // esto el 2026-08-23 ("descargar... hace la función de compartir, no descarga a mi
+  // teléfono"), pero esta pantalla (confirmar Grand Folies/carrito B2B) es un sitio
+  // distinto que se quedó con el comportamiento viejo. Mismo Storage Access
+  // Framework que ya usa esa otra pantalla en Android -- descarga de verdad ahí,
+  // comparte en iOS (sin SAF).
   async function descargarDocumento(tipo: 'docx' | 'pdf') {
     try {
-      await descargarYCompartir(urlDescargarAlbaran(sesion, tipo), `${prefijoDescarga}-${sesion}.${tipo}`);
+      const archivo = await descargarACache(urlDescargarAlbaran(sesion, tipo), `${prefijoDescarga}-${sesion}.${tipo}`);
+      if (Platform.OS === 'android') {
+        const permiso = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (!permiso.granted) return;
+        const base64 = await StorageAccessFramework.readAsStringAsync(archivo.uri, { encoding: 'base64' });
+        const destinoUri = await StorageAccessFramework.createFileAsync(permiso.directoryUri, `${prefijoDescarga}-${sesion}`, MIME[tipo]);
+        await StorageAccessFramework.writeAsStringAsync(destinoUri, base64, { encoding: 'base64' });
+        Alert.alert('Descargado', `${prefijoDescarga}-${sesion}.${tipo} guardado correctamente.`);
+      } else if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(archivo.uri);
+      }
     } catch {
       setError('No se ha podido descargar el documento.');
     }

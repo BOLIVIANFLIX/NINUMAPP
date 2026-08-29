@@ -53,6 +53,30 @@ _TIPO_LABEL = {
 
 _CAMPOS_FORMULARIO_CONTACTO = {"nombre", "email", "telefono", "tipo", "fecha", "personas", "descripcion", "origen", "rgpd"}
 
+# WBD/src/lib/orders.ts::notifyOrderByEmail manda tipo="b2b" (mismo Formspree que el
+# formulario de contacto) pero para un pedido YA hecho de verdad por una cuenta B2B
+# desde su panel privado -- no es una consulta de colaboración nueva. Se distingue
+# por el asunto, que ahí es fijo y distinto ("Nuevo pedido B2B (autoservicio)") del
+# de una colaboración real desde /contacto ("Nueva colaboración B2B", ver
+# ContactoForm.astro). Ariadna, 2026-08-29: "me gustaría que pusiese Pedido Empresa
+# por web y dejase el pedido completo, el nombre del producto y las unidades... no
+# hace falta poner el precio".
+_ASUNTO_PEDIDO_B2B_WEB = "autoservicio"
+
+
+def _resumen_lineas_pedido_b2b(descripcion: str) -> str:
+    """PedidoRapidoCard.astro/cuenta/carrito.astro construyen cada línea como
+    "- N.º X Nombre: N uds x precio" y cierran con una línea "Total: ..." -- se
+    recorta cada línea a "- N.º X Nombre: N uds" (sin precio) y se quita la línea de
+    encabezado y la de total (también son datos de precio/contexto interno, no del
+    pedido en sí)."""
+    lineas = []
+    for linea in descripcion.splitlines():
+        if not linea.strip() or linea.startswith("Total:") or linea.startswith("Pedido rápido desde"):
+            continue
+        lineas.append(linea.split(" uds x ")[0] + " uds" if " uds x " in linea else linea)
+    return "\n".join(lineas)
+
 
 def _parsear_formulario_contacto(cuerpo: str) -> dict[str, str] | None:
     """El cuerpo en texto plano de un aviso de Formspree del formulario de contacto
@@ -91,7 +115,7 @@ def _texto_plano(parte: dict) -> str | None:
     return None
 
 
-async def _resumen_formspree(cliente: httpx.AsyncClient, cabeceras: dict, id_: str) -> tuple[str, str] | None:
+async def _resumen_formspree(cliente: httpx.AsyncClient, cabeceras: dict, id_: str, asunto_original: str) -> tuple[str, str] | None:
     """Para un aviso de Formspree del formulario de contacto -- Ariadna, 2026-08-28:
     "el texto que se puede ver en la app no es nada útil" (viendo "Formspree
     <noreply@formspree.io> · You've received a new form submission...", el propio
@@ -112,8 +136,13 @@ async def _resumen_formspree(cliente: httpx.AsyncClient, cabeceras: dict, id_: s
     campos = _parsear_formulario_contacto(cuerpo)
     if campos is None:
         return None
-    etiqueta = _TIPO_LABEL.get(campos.get("tipo", ""), "Contacto")
-    return f"{etiqueta} — {campos.get('nombre') or 'Sin nombre'}", campos.get("descripcion") or ""
+    tipo = campos.get("tipo", "")
+    nombre = campos.get("nombre") or "Sin nombre"
+    descripcion = campos.get("descripcion") or ""
+    if tipo == "b2b" and _ASUNTO_PEDIDO_B2B_WEB in asunto_original.lower():
+        return f"Pedido Empresa por web — {nombre}", _resumen_lineas_pedido_b2b(descripcion)
+    etiqueta = _TIPO_LABEL.get(tipo, "Contacto")
+    return f"{etiqueta} — {nombre}", descripcion
 
 
 async def _detalle_correo(cliente: httpx.AsyncClient, cabeceras: dict, id_: str) -> CorreoPendiente:
@@ -131,7 +160,7 @@ async def _detalle_correo(cliente: httpx.AsyncClient, cabeceras: dict, id_: str)
 
     if "formspree.io" in de.lower():
         try:
-            resumen_formspree = await _resumen_formspree(cliente, cabeceras, id_)
+            resumen_formspree = await _resumen_formspree(cliente, cabeceras, id_, asunto)
         except httpx.HTTPError:
             resumen_formspree = None
         if resumen_formspree:
