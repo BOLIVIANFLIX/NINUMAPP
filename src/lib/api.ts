@@ -1310,6 +1310,7 @@ export interface AlbaranDeCliente {
   numero: string;
   estado: string;
   cobrado: boolean;
+  facturado: boolean;
   creado_en: string;
 }
 

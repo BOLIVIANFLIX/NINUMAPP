@@ -115,12 +115,12 @@ export function ClienteProfesionalDetalle({ nombre, onVolver }: { nombre: string
                       onPress={() => setVista({ tipo: 'documento', numeros: data.albaranes.map((x) => x.numero), indice: i })}
                       left={<Dot color={a.cobrado ? 'success' : 'warning'} />}
                       title={a.numero}
-                      subtitle={`${fecha.format(new Date(a.creado_en))} · ${a.estado}`}
-                      right={
-                        <ThemedText type="small" themeColor="textSecondary">
-                          {a.cobrado ? 'Cobrado' : 'Pendiente'}
-                        </ThemedText>
-                      }
+                      // Ariadna, 2026-08-29: "los tres pone pendiente, no hay diferencia entre
+                      // ellos... solo puedo verlo si entro albarán por albarán" -- "pendiente"
+                      // salía tanto del estado de entrega como del de cobro, y el de facturación
+                      // no se veía en ningún sitio de esta lista. Los tres pasos reales, de un
+                      // vistazo, sin tener que entrar en cada uno.
+                      subtitle={`${fecha.format(new Date(a.creado_en))} · ${a.estado === 'entregado' ? '✅' : '⬜'} Entregado  ${a.facturado ? '✅' : '⬜'} Facturado  ${a.cobrado ? '✅' : '⬜'} Cobrado`}
                     />
                   ))}
                 </ListCard>
