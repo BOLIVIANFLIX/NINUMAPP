@@ -803,6 +803,11 @@ export async function confirmarGrandFolies(
     numero_manual: numeroManual,
     lineas_finales: lineasFinales,
   });
+  // ninuma-agente responde 200 con {ok:false, error} en vez de un HTTP de error
+  // cuando el pedido ya se había confirmado antes (Ariadna, 2026-08-29) -- sin este
+  // chequeo, la pantalla de "Albarán generado" se habría mostrado igual con datos
+  // vacíos en vez del aviso real.
+  if (resp.data?.ok === false) throw new Error(resp.data.error || 'No se ha podido confirmar el pedido.');
   return resp.data;
 }
 
@@ -857,6 +862,8 @@ export async function confirmarB2BCarrito(
     numero_manual: numeroManual,
     lineas_finales: lineasFinales,
   });
+  // Mismo motivo que confirmarGrandFolies -- ver el aviso ahí.
+  if (resp.data?.ok === false) throw new Error(resp.data.error || 'No se ha podido confirmar el pedido.');
   return resp.data;
 }
 

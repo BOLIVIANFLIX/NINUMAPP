@@ -17,7 +17,17 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { confirmarB2BCarrito, descartarB2BCarrito, type PedidoB2BCarrito } from '@/lib/api';
 
-export function B2BCarritoConfirmar({ pedido, onVolver, onResuelto }: { pedido: PedidoB2BCarrito; onVolver: () => void; onResuelto: () => void }) {
+export function B2BCarritoConfirmar({
+  pedido,
+  onVolver,
+  onResuelto,
+  onConfirmado,
+}: {
+  pedido: PedidoB2BCarrito;
+  onVolver: () => void;
+  onResuelto: () => void;
+  onConfirmado?: () => void;
+}) {
   const theme = useTheme();
   // Si el cliente pidió una fecha al hacer el pedido, se prellena aquí -- Ariadna
   // sigue pudiendo tocarla para cambiarla antes de confirmar (Ariadna, 2026-08-26).
@@ -28,6 +38,7 @@ export function B2BCarritoConfirmar({ pedido, onVolver, onResuelto }: { pedido: 
     <AlbaranConfirmarBase
       onVolver={onVolver}
       onResuelto={onResuelto}
+      onConfirmado={onConfirmado}
       titulo={`Pedido B2B — ${pedido.cliente}`}
       subtitulo={pedido.ya_pagado ? 'Comprado por la tienda online -- ya cobrado' : 'Pedido desde el carrito privado'}
       banner={

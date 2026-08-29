@@ -30,6 +30,7 @@ type LineaConfirmable = {
 export function AlbaranConfirmarBase<L extends LineaConfirmable>({
   onVolver,
   onResuelto,
+  onConfirmado,
   titulo,
   subtitulo,
   banner,
@@ -46,6 +47,15 @@ export function AlbaranConfirmarBase<L extends LineaConfirmable>({
 }: {
   onVolver: () => void;
   onResuelto: () => void;
+  /** Ariadna, 2026-08-29: confirmó el mismo pedido 3 veces porque, tras confirmar,
+   * la lista de Avisos seguía mostrándolo como pendiente hasta pulsar "Volver a
+   * Avisos" (onResuelto, que es lo único que refrescaba esa lista) -- si algo fallaba
+   * al descargar el documento y no llegaba a pulsar ese botón, todo indicaba que el
+   * pedido seguía sin confirmar. Se llama en cuanto el albarán real ya existe
+   * (antes de mostrar la pantalla de descarga), para que la lista quede correcta
+   * pase lo que pase después con la descarga -- onResuelto sigue siendo el único que
+   * además navega de vuelta a Avisos. */
+  onConfirmado?: () => void;
   titulo: string;
   subtitulo: ReactNode;
   banner?: ReactNode;
@@ -104,6 +114,7 @@ export function AlbaranConfirmarBase<L extends LineaConfirmable>({
       const numero_manual = numeroModo === 'auto' ? null : numeroModo === 'blank' ? '' : numeroManual.trim();
       const resp = await confirmar(numero_manual, lineas);
       setResultado(resp);
+      onConfirmado?.();
     } catch (err) {
       setError(mensajeError(err));
     } finally {

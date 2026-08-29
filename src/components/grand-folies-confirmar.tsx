@@ -9,11 +9,22 @@
 import { AlbaranConfirmarBase } from '@/components/albaran-confirmar-base';
 import { confirmarGrandFolies, descartarGrandFolies, type PedidoGrandFolies } from '@/lib/api';
 
-export function GrandFoliesConfirmar({ pedido, onVolver, onResuelto }: { pedido: PedidoGrandFolies; onVolver: () => void; onResuelto: () => void }) {
+export function GrandFoliesConfirmar({
+  pedido,
+  onVolver,
+  onResuelto,
+  onConfirmado,
+}: {
+  pedido: PedidoGrandFolies;
+  onVolver: () => void;
+  onResuelto: () => void;
+  onConfirmado?: () => void;
+}) {
   return (
     <AlbaranConfirmarBase
       onVolver={onVolver}
       onResuelto={onResuelto}
+      onConfirmado={onConfirmado}
       titulo="Pedido Grand Folies"
       subtitulo={`${pedido.numero_pedido ?? 'Sin número'} · entrega ${pedido.fecha_entrega ?? 'sin fecha'}`}
       lineasIniciales={pedido.lineas}

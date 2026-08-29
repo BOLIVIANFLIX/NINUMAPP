@@ -59,21 +59,39 @@ export default function AvisosScreen() {
   if (asuntoEmail) return <AsuntoEmail encargo={asuntoEmail} onVolver={() => setAsuntoEmail(null)} />;
   if (solicitudAbierta) return <SolicitudDetalle solicitud={solicitudAbierta} onVolver={() => setSolicitudAbierta(null)} />;
 
+  // Ariadna, 2026-08-29: confirmó el mismo pedido de Grand Folies 3 veces -- la
+  // lista de Avisos seguía mostrándolo como pendiente hasta volver atrás a mano
+  // (esto solo se invalidaba en onResuelto, al pulsar "Volver a Avisos"), así que
+  // ante un fallo de descarga del documento todo parecía indicar que no se había
+  // guardado. Ahora se invalida en cuanto el albarán ya existe de verdad
+  // (onConfirmado, ver AlbaranConfirmarBase), antes incluso de ver la pantalla de
+  // descarga -- pase lo que pase después con la descarga, la lista ya está bien.
+  function refrescarTrasConfirmarGF() {
+    queryClient.invalidateQueries({ queryKey: ['avisos', 'grand-folies'] });
+    // Confirmar genera un albarán real -- sin esto, Inicio se quedaba con las
+    // cifras viejas hasta refrescarlo a mano (Ariadna, 2026-08-27). Faltaba
+    // también 'clientes-profesionales' -- mismo bug, pero en Pedidos > Profesionales
+    // en vez de Inicio: seguía mostrando "Sin albaranes abiertos" del cliente hasta
+    // refrescar a mano, aunque el albarán ya existiera de verdad (Ariadna, 2026-08-28).
+    queryClient.invalidateQueries({ queryKey: ['resumen'] });
+    queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
+  }
+
+  function refrescarTrasConfirmarB2B() {
+    queryClient.invalidateQueries({ queryKey: ['avisos', 'b2b-carrito'] });
+    queryClient.invalidateQueries({ queryKey: ['resumen'] });
+    queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
+  }
+
   if (pedidoGF) {
     return (
       <GrandFoliesConfirmar
         pedido={pedidoGF}
         onVolver={() => setPedidoGF(null)}
+        onConfirmado={refrescarTrasConfirmarGF}
         onResuelto={() => {
           setPedidoGF(null);
-          queryClient.invalidateQueries({ queryKey: ['avisos', 'grand-folies'] });
-          // Confirmar genera un albarán real -- sin esto, Inicio se quedaba con las
-          // cifras viejas hasta refrescarlo a mano (Ariadna, 2026-08-27). Faltaba
-          // también 'clientes-profesionales' -- mismo bug, pero en Pedidos > Profesionales
-          // en vez de Inicio: seguía mostrando "Sin albaranes abiertos" del cliente hasta
-          // refrescar a mano, aunque el albarán ya existiera de verdad (Ariadna, 2026-08-28).
-          queryClient.invalidateQueries({ queryKey: ['resumen'] });
-          queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
+          refrescarTrasConfirmarGF();
         }}
       />
     );
@@ -84,14 +102,10 @@ export default function AvisosScreen() {
       <B2BCarritoConfirmar
         pedido={pedidoB2B}
         onVolver={() => setPedidoB2B(null)}
+        onConfirmado={refrescarTrasConfirmarB2B}
         onResuelto={() => {
           setPedidoB2B(null);
-          queryClient.invalidateQueries({ queryKey: ['avisos', 'b2b-carrito'] });
-          queryClient.invalidateQueries({ queryKey: ['resumen'] });
-          // Mismo bug que GrandFoliesConfirmar arriba: sin esto, Pedidos > Profesionales
-          // seguía mostrando "Sin albaranes abiertos" del cliente aunque el albarán ya
-          // existiera (Ariadna, 2026-08-28).
-          queryClient.invalidateQueries({ queryKey: ['clientes-profesionales'] });
+          refrescarTrasConfirmarB2B();
         }}
       />
     );
