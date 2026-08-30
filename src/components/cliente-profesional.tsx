@@ -119,8 +119,12 @@ export function ClienteProfesionalDetalle({ nombre, onVolver }: { nombre: string
                       // ellos... solo puedo verlo si entro albarán por albarán" -- "pendiente"
                       // salía tanto del estado de entrega como del de cobro, y el de facturación
                       // no se veía en ningún sitio de esta lista. Los tres pasos reales, de un
-                      // vistazo, sin tener que entrar en cada uno.
-                      subtitle={`${fecha.format(new Date(a.creado_en))} · ${a.estado === 'entregado' ? '✅' : '⬜'} Entregado  ${a.facturado ? '✅' : '⬜'} Facturado  ${a.cobrado ? '✅' : '⬜'} Cobrado`}
+                      // vistazo, sin tener que entrar en cada uno. Ariadna, 2026-08-30:
+                      // con las tres palabras completas la línea no cabía en el ancho de
+                      // pantalla y "Cobrado" se partía solo a la línea de abajo --
+                      // abreviado a una letra por estado (E/F/C) para que quepa siempre
+                      // en una sola línea junto con la fecha.
+                      subtitle={`${fecha.format(new Date(a.creado_en))} · E${a.estado === 'entregado' ? '✅' : '⬜'} F${a.facturado ? '✅' : '⬜'} C${a.cobrado ? '✅' : '⬜'}`}
                     />
                   ))}
                 </ListCard>
