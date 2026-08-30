@@ -392,6 +392,10 @@ async def inventario_descartar(escaneo_id: str) -> None:
     await _post("/api/ninumapp/inventario/descartar", {"id": escaneo_id})
 
 
+async def inventario_asignar_cliente(escaneo_id: str, cliente: str) -> dict:
+    return await _post("/api/ninumapp/inventario/asignar-cliente", {"id": escaneo_id, "cliente": cliente})
+
+
 async def inventario_stock_actual() -> tuple[list[dict], bool]:
     datos = await _get("/api/ninumapp/inventario/stock-actual")
     return (datos, True) if datos is not None else ([], False)

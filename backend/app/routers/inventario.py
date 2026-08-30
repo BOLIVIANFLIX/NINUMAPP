@@ -68,6 +68,17 @@ async def descartar(body: EscaneoIdBody, usuario: Usuario = Depends(usuario_actu
     return {"ok": True}
 
 
+class AsignarClienteBody(BaseModel):
+    id: str
+    cliente: str
+
+
+@router.post("/asignar-cliente")
+@_manejar_error
+async def asignar_cliente(body: AsignarClienteBody, usuario: Usuario = Depends(usuario_actual)):
+    return await panel_agente.inventario_asignar_cliente(body.id, body.cliente)
+
+
 @router.get("/stock-actual")
 async def stock_actual(usuario: Usuario = Depends(usuario_actual)):
     lista, conectado = await panel_agente.inventario_stock_actual()

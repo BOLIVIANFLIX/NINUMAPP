@@ -399,6 +399,16 @@ export async function escanearInventario(uri: string): Promise<BorradorEscaneo> 
   return resp.data;
 }
 
+/** Corrige el cliente de un albarán propio ya escaneado (elegido de un desplegable
+ * de empresas ya registradas, o recién creada) sin volver a fotografiar nada --
+ * Ariadna, 2026-08-30: quiere identificar empresas por NIF para no duplicarlas, y
+ * si no se reconoce ninguna, poder elegir una existente o crear una nueva. */
+export async function asignarClienteEscaneo(id: string, cliente: string): Promise<BorradorEscaneo> {
+  const resp = await api.post('/api/inventario/asignar-cliente', { id, cliente });
+  if (resp.data?.ok === false) throw new Error(resp.data.error || 'No se ha podido asignar ese cliente.');
+  return resp.data;
+}
+
 export interface ResultadoConfirmarInventario {
   ok: boolean;
   error?: string;

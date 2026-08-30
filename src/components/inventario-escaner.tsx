@@ -12,10 +12,13 @@ import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useVolverAtras } from '@/hooks/use-volver-atras';
 import {
+  asignarClienteEscaneo,
   confirmarInventario,
+  crearClienteProfesional,
   descartarInventario,
   escanearInventario,
   mensajeError,
+  obtenerClientesParaAlbaran,
   type BorradorEscaneo,
   type CorreccionTicket,
   type ResultadoConfirmarInventario,
@@ -154,7 +157,13 @@ export function InventarioEscaner({ onVolver }: { onVolver: () => void }) {
           )}
 
           {(paso === 'revisar' || paso === 'confirmando') && borrador && (
-            <RevisionBorrador borrador={borrador} correccion={correccion} onCambiarCorreccion={setCorreccion} theme={theme} />
+            <RevisionBorrador
+              borrador={borrador}
+              correccion={correccion}
+              onCambiarCorreccion={setCorreccion}
+              onClienteAsignado={setBorrador}
+              theme={theme}
+            />
           )}
         </ScrollView>
 
@@ -179,10 +188,12 @@ function RevisionBorrador({
   borrador,
   correccion,
   onCambiarCorreccion,
+  onClienteAsignado,
   theme,
 }: {
   borrador: BorradorEscaneo;
   correccion: CorreccionTicket;
+  onClienteAsignado: (b: BorradorEscaneo) => void;
   onCambiarCorreccion: (c: CorreccionTicket) => void;
   theme: ReturnType<typeof useTheme>;
 }) {
@@ -310,9 +321,14 @@ function RevisionBorrador({
         </ListCard>
       )}
       {!borrador.cliente_conocido && borrador.cliente && (
-        <ThemedText type="small" themeColor="danger" style={styles.aviso}>
-          ❌ «{borrador.cliente}» no está en tus clientes guardados{borrador.direccion_cliente && borrador.cif_cliente ? ' -- se dará de alta automáticamente al confirmar.' : ', y me falta su dirección/CIF -- créalo antes desde "Nuevo albarán".'}
-        </ThemedText>
+        <>
+          <ThemedText type="small" themeColor="danger" style={styles.aviso}>
+            ❌ «{borrador.cliente}» no está en tus clientes guardados{borrador.direccion_cliente && borrador.cif_cliente ? ' -- se dará de alta automáticamente al confirmar.' : '.'}
+          </ThemedText>
+          {clienteNuevoIncompleto && (
+            <SelectorEmpresa escaneoId={borrador.id} onAsignado={onClienteAsignado} />
+          )}
+        </>
       )}
       {!!sinPrecio.length && (
         <ThemedText type="small" themeColor="danger" style={styles.aviso}>
@@ -325,6 +341,131 @@ function RevisionBorrador({
           : 'Al confirmar se registra ya en contabilidad con este número y no genera un documento nuevo (el papel ya existe).'}
       </ThemedText>
     </>
+  );
+}
+
+/** Ariadna, 2026-08-30: "toda empresa tiene un NIF único... si ves que es empresa y
+ * no identificas el NIF, pregúntamelo o dame un menú desplegable con las empresas
+ * que ya tienes registradas... y junto a eso la opción de nueva empresa... no hay
+ * ningún dato obligatorio". Aparece solo cuando el cliente leído en la foto no
+ * coincide con ninguno guardado (ni por CIF ni por nombre) y falta dirección/CIF --
+ * reutiliza tal cual el mismo desplegable y el mismo alta de cliente que ya usa el
+ * asistente de "Nuevo albarán" (obtenerClientesParaAlbaran/crearClienteProfesional),
+ * solo le falta poder aplicarse a un escaneo ya hecho (ver asignarClienteEscaneo). */
+function SelectorEmpresa({ escaneoId, onAsignado }: { escaneoId: string; onAsignado: (b: BorradorEscaneo) => void }) {
+  const theme = useTheme();
+  const [modo, setModo] = useState<'cerrado' | 'elegir' | 'nueva'>('cerrado');
+  const [clientes, setClientes] = useState<{ nombre: string }[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [nombreNuevo, setNombreNuevo] = useState('');
+  const [direccionNueva, setDireccionNueva] = useState('');
+  const [cifNuevo, setCifNuevo] = useState('');
+
+  async function abrirElegir() {
+    setModo('elegir');
+    setError(null);
+    setCargando(true);
+    try {
+      setClientes(await obtenerClientesParaAlbaran());
+    } catch (err) {
+      setError(mensajeError(err));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function elegir(nombre: string) {
+    setCargando(true);
+    setError(null);
+    try {
+      onAsignado(await asignarClienteEscaneo(escaneoId, nombre));
+    } catch (err) {
+      setError(mensajeError(err));
+      setCargando(false);
+    }
+  }
+
+  async function crearYAsignar() {
+    if (!nombreNuevo.trim()) {
+      setError('Falta el nombre de la empresa.');
+      return;
+    }
+    setCargando(true);
+    setError(null);
+    try {
+      await crearClienteProfesional(nombreNuevo.trim(), direccionNueva.trim(), cifNuevo.trim(), 'directa');
+      onAsignado(await asignarClienteEscaneo(escaneoId, nombreNuevo.trim()));
+    } catch (err) {
+      setError(mensajeError(err));
+      setCargando(false);
+    }
+  }
+
+  if (modo === 'cerrado') {
+    return (
+      <View style={styles.filaBotonesEmpresa}>
+        <Pressable onPress={abrirElegir} style={[styles.botonEmpresa, { borderColor: theme.accent }]}>
+          <ThemedText type="small" style={{ color: theme.accent }}>Elegir empresa existente</ThemedText>
+        </Pressable>
+        <Pressable onPress={() => setModo('nueva')} style={[styles.botonEmpresa, { borderColor: theme.accent }]}>
+          <ThemedText type="small" style={{ color: theme.accent }}>+ Nueva empresa</ThemedText>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (modo === 'elegir') {
+    return (
+      <View style={[styles.formCardEmpresa, { backgroundColor: theme.backgroundElement }]}>
+        {cargando && <ActivityIndicator color={theme.accent} />}
+        {error && <ThemedText type="small" themeColor="danger">{error}</ThemedText>}
+        {!cargando && clientes.length === 0 && (
+          <ThemedText type="small" themeColor="textSecondary">No tienes ninguna empresa guardada todavía.</ThemedText>
+        )}
+        {clientes.map((c) => (
+          <Pressable key={c.nombre} onPress={() => elegir(c.nombre)} style={styles.filaClienteElegir}>
+            <ThemedText type="small">{c.nombre}</ThemedText>
+          </Pressable>
+        ))}
+        <Pressable onPress={() => setModo('cerrado')}>
+          <ThemedText type="small" themeColor="textSecondary">Cancelar</ThemedText>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.formCardEmpresa, { backgroundColor: theme.backgroundElement }]}>
+      <TextInput
+        value={nombreNuevo}
+        onChangeText={setNombreNuevo}
+        placeholder="Nombre de la empresa"
+        placeholderTextColor={theme.textSecondary}
+        style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+      />
+      <TextInput
+        value={direccionNueva}
+        onChangeText={setDireccionNueva}
+        placeholder="Dirección (opcional)"
+        placeholderTextColor={theme.textSecondary}
+        style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+      />
+      <TextInput
+        value={cifNuevo}
+        onChangeText={setCifNuevo}
+        placeholder="CIF/NIF (opcional)"
+        placeholderTextColor={theme.textSecondary}
+        style={[styles.input, { color: theme.text, borderColor: theme.separator }]}
+      />
+      {error && <ThemedText type="small" themeColor="danger">{error}</ThemedText>}
+      <View style={styles.filaBotonesEmpresa}>
+        <BotonPrimario texto="Crear y usar" onPress={crearYAsignar} cargando={cargando} />
+        <Pressable onPress={() => setModo('cerrado')}>
+          <ThemedText type="small" themeColor="textSecondary">Cancelar</ThemedText>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -346,4 +487,9 @@ const styles = StyleSheet.create({
   filaBotones: { flexDirection: 'row', gap: Spacing.two },
   botonRescan: { flex: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   botonConfirmar: { flex: 1 },
+  filaBotonesEmpresa: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.one, flexWrap: 'wrap' },
+  botonEmpresa: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5 },
+  formCardEmpresa: { borderRadius: 14, padding: Spacing.three, gap: Spacing.two, marginTop: Spacing.one },
+  filaClienteElegir: { paddingVertical: 10 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15 },
 });
